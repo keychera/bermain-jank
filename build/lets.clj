@@ -7,6 +7,7 @@
    [java.io File]))
 
 (defonce deps-basis (delay (b/create-basis {:project "deps.edn"})))
+(def target-dir (delay (or (-> @deps-basis :jank :target-dir) "target")))
 
 (defn log [& stuff]
   (apply println "[bermain@jank]" stuff))
@@ -30,6 +31,12 @@
 (defn check [& _]
   (prn @deps-basis))
 
+(defn workaround [& _]
+  (let [sdl-home  (str selfbuild-home "/sdl3")
+        sdl-build (str sdl-home "/build")]
+    (fs/copy (str sdl-build "/Release/libSDL3.dll") (str @target-dir "/SDL3.dll") {:replace-existing true})
+    (log "workaround done")))
+
 ;; jank pseudo-deps-edn, powered by https://github.com/babashka/tools.bbuild
 
 (defn ->jank-deps-edn []
@@ -50,8 +57,6 @@
            (->flags "-l" linked-libraries)
            [command main-module]
            extra))))
-
-(def target-dir (delay (or (-> @deps-basis :jank :target-dir) "target")))
 
 (defn clean [& _]
   (println "cleaning target...")
