@@ -31,4 +31,6 @@
         (when (< total 4000)
           (recur game'))))
 
-    (println "success?" (cpp/box sdl-window-*))))
+    (println "success?" (cpp/box sdl-window-*))
+    (cpp/SDL_DestroyWindow sdl-window-*)
+    (cpp/SDL_Quit)))
