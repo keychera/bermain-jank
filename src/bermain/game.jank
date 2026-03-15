@@ -1,4 +1,10 @@
-(ns bermain.game)
+(ns bermain.game
+  (:require [minusthree.platform.sdl3.sdl3 :as sdl3]))
 
 (defn -main [& _]
-  (println "ayo bermain jank!"))
+  (println "ayo bermain jank!")
+  (println ::sdl3/a-keyword)
+  (sdl3/start))
+
+(comment
+  (sdl3/start))
