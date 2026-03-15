@@ -83,13 +83,6 @@
     (log jcmd)
     (b/process {:command-args jcmd})))
 
-(defn jepl
-  [{}]
-  (let [jedn (->jank-deps-edn)
-        jcmd (jank-command jedn "repl" {})]
-    (log jcmd)
-    (b/process {:command-args jcmd})))
-
 (defn compile-jank
   [{}]
   (let [jedn (->jank-deps-edn)

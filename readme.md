@@ -13,9 +13,6 @@ devel
 # run-main
 bb jank
 
-# run jank repl (jepl)
-bb jepl
-
 # aot compile
 bb lets workaround
 bb compile
