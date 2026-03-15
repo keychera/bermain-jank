@@ -1,0 +1,4 @@
+(ns bermain.game)
+
+(defn -main [& _]
+  (println "ayo bermain jank!"))
