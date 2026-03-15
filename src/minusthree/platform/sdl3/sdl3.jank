@@ -21,16 +21,16 @@
     (cpp/SDL_SetWindowPosition sdl-window-* cpp/SDL_WINDOWPOS_CENTERED cpp/SDL_WINDOWPOS_CENTERED)
     (cpp/SDL_ShowWindow sdl-window-*)
 
-    (loop [game {::time/total #cpp 0}]
+    (loop [game (time/init)]
       (let [event (cpp/SDL_Event.)
             total (cpp/SDL_GetTicks)
-            delta (- total (::time/total game))
+            delta (- total (time/get-total game))
             game' (time/update-time game total delta)]
         (cpp/SDL_SetWindowTitle sdl-window-* (str "frametime: " delta " ms"))
         (while (cpp/SDL_PollEvent (cpp/& event)))
         (when (< total 4000)
           (recur game'))))
 
-    (println "success?" (cpp/box sdl-window-*))
+    (println "success!" (cpp/box sdl-window-*))
     (cpp/SDL_DestroyWindow sdl-window-*)
     (cpp/SDL_Quit)))

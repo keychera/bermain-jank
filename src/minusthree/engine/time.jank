@@ -1,4 +1,10 @@
 (ns minusthree.engine.time)
 
+(defn init []
+  {::total #cpp 0})
+
 (defn update-time [game total delta]
   (-> (assoc game ::total total ::delta delta)))
+
+(defn get-total [game]
+  (::total game))
