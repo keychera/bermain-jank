@@ -1,14 +1,29 @@
 (ns minusthree.platform.sdl3.sdl3
-  (:include "SDL3/sdl.h"))
+  (:include "SDL3/sdl.h")
+  (:require
+   [minusthree.platform.sdl3.common :refer [throw-sdl-error]]))
 
-(comment 
-  ::a-keyword
-  :-)
+;; learning from https://github.com/ocornut/imgui/blob/master/examples/example_sdl3_sdlgpu3/main.cpp
+;; but without imgui first
 
 (defn start []
-  (if-let [res (cpp/SDL_Init cpp/SDL_INIT_VIDEO)]
-    (println "success?" res)
-    (println "SDL_Init failed!" (cpp/SDL_GetError)))
+  (when (not (cpp/SDL_Init (bit-or cpp/SDL_INIT_VIDEO cpp/SDL_INIT_GAMEPAD)))
+    (throw-sdl-error "Error: cpp/SDL_Init!"))
 
-  (let [main-scale (cpp/SDL_GetDisplayContentScale (cpp/SDL_GetPrimaryDisplay))]
-    (println "mainscale =" main-scale)))
+  (let [main-scale    (cpp/SDL_GetDisplayContentScale (cpp/SDL_GetPrimaryDisplay))
+        window-flags  (bit-or cpp/SDL_WINDOW_RESIZABLE cpp/SDL_WINDOW_HIDDEN cpp/SDL_WINDOW_HIGH_PIXEL_DENSITY)
+        width         (int (* 560 main-scale))
+        height        (int (* 560 main-scale))
+        sdl-window-* (cpp/SDL_CreateWindow "Hello jank + sdl3!" width height window-flags)]
+    (when (cpp/== cpp/nullptr sdl-window-*)
+      (throw-sdl-error "Error: cpp/SDL_CreateWindow!"))
+    (cpp/SDL_SetWindowPosition sdl-window-* cpp/SDL_WINDOWPOS_CENTERED cpp/SDL_WINDOWPOS_CENTERED)
+    (cpp/SDL_ShowWindow sdl-window-*)
+
+    (loop [tick #cpp 0]
+      (when (< tick 4000)
+        (let [event (cpp/SDL_Event.)]
+          (while (cpp/SDL_PollEvent (cpp/& event)))
+          (recur (cpp/SDL_GetTicks)))))
+
+    (println "success?" (cpp/box sdl-window-*))))

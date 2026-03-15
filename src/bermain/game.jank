@@ -3,8 +3,4 @@
 
 (defn -main [& _]
   (println "ayo bermain jank!")
-  (println ::sdl3/a-keyword)
-  (sdl3/start))
-
-(comment
   (sdl3/start))

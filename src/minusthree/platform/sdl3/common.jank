@@ -1,0 +1,6 @@
+(ns minusthree.platform.sdl3.common)
+
+(defn throw-sdl-error [msg]
+  (let [sdl-error (cpp/cast cpp/std.string (cpp/SDL_GetError))]
+    (println "[sdl3 error]" msg ", error from sdl:" sdl-error)
+    (throw (ex-info msg {} {:data sdl-error}))))
