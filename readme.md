@@ -29,3 +29,24 @@ bb compile
 # clean
 bb lets clean
 ```
+
+## note on wrong expectation
+
+while tinkering, these were some aspect about jank that took me a bit of time to figure out.
+
+- #cpp float values
+
+```clojure
+; I thought below would work
+(cpp/SDL_FColor #cpp 1.0 #cpp 1.0 #cpp 1.0 #cpp 1.0)
+; but SDL_FColor require floats, and clojure is double by default
+(cpp/SDL_FColor (cpp/float 1.0) (cpp/float 1.0) (cpp/float 1.0) (cpp/float 1.0))
+```
+
+- I thought `.` was necessary
+
+```clojure
+(cpp/SDL_Event.)
+(cpp/SDL_Event)
+; is the same?
+```
