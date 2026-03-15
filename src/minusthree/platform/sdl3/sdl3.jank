@@ -1,6 +1,7 @@
 (ns minusthree.platform.sdl3.sdl3
   (:include "SDL3/sdl.h")
   (:require
+   [minusthree.engine.time :as time]
    [minusthree.platform.sdl3.common :refer [throw-sdl-error]]))
 
 ;; learning from https://github.com/ocornut/imgui/blob/master/examples/example_sdl3_sdlgpu3/main.cpp
@@ -20,10 +21,14 @@
     (cpp/SDL_SetWindowPosition sdl-window-* cpp/SDL_WINDOWPOS_CENTERED cpp/SDL_WINDOWPOS_CENTERED)
     (cpp/SDL_ShowWindow sdl-window-*)
 
-    (loop [tick #cpp 0]
-      (when (< tick 4000)
-        (let [event (cpp/SDL_Event.)]
-          (while (cpp/SDL_PollEvent (cpp/& event)))
-          (recur (cpp/SDL_GetTicks)))))
+    (loop [game {::time/total #cpp 0}]
+      (let [event (cpp/SDL_Event.)
+            total (cpp/SDL_GetTicks)
+            delta (- total (::time/total game))
+            game' (time/update-time game total delta)]
+        (cpp/SDL_SetWindowTitle sdl-window-* (str "frametime: " delta " ms"))
+        (while (cpp/SDL_PollEvent (cpp/& event)))
+        (when (< total 4000)
+          (recur game'))))
 
     (println "success?" (cpp/box sdl-window-*))))

@@ -1,0 +1,4 @@
+(ns minusthree.engine.time)
+
+(defn update-time [game total delta]
+  (-> (assoc game ::total total ::delta delta)))
