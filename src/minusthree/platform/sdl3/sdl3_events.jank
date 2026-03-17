@@ -1,0 +1,16 @@
+(ns minusthree.platform.sdl3.sdl3-events)
+
+(defn poll-events [game]
+  (let [event (cpp/SDL_Event)]
+    (loop [game' game]
+      (if (cpp/SDL_PollEvent (cpp/& event))
+        ;; from https://wiki.libsdl.org/SDL3/SDL_Event
+        ;; Uint32 type; /**< Event type, shared with all events, Uint32 to cover user events which are not in the SDL_EventType enumeration */
+        (let [event-type (cpp/unsafe-cast cpp/SDL_EventType (.-type event))]
+          (cond
+            (or (cpp/== event-type cpp/SDL_EVENT_QUIT)
+                (cpp/== event-type cpp/SDL_EVENT_WINDOW_CLOSE_REQUESTED))
+            (recur (assoc game' ::end? true))
+
+            :else (recur game')))
+        game'))))
