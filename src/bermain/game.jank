@@ -1,17 +1,6 @@
 (ns bermain.game
-  (:require [minusthree.platform.sdl3.sdl3 :as sdl3]))
+  (:require
+   [minusthree.platform.sdl3.sdl3 :as sdl3]))
 
 (defn -main [& _]
-  (println "ayo bermain jank!")
   (sdl3/start))
-
-(comment
-
-  (future (sdl3/start))
-  ;; calling on repl thread, (sdl3/start) will block repl
-  ;; calling in a future is fine, but it can be called more than once
-  ;; the second windows and so on produce weird error on being closed
-
-  (+ 1 1)
-
-  ::waiting-for-something-to-happen?)

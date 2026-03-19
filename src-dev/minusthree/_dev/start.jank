@@ -1,0 +1,9 @@
+(ns minusthree.-dev.start
+  (:require
+   [minusthree.platform.sdl3.sdl3 :as sdl3]))
+
+(sdl3/start)
+
+(comment
+
+  ::waiting-for-something-to-happen?)

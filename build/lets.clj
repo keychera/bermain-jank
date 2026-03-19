@@ -6,7 +6,8 @@
   (:import
    [java.io File]))
 
-(defonce deps-basis (delay (b/create-basis {:project "deps.edn"})))
+(defonce deps-basis (delay (b/create-basis {:project "deps.edn" :aliases [:release]})))
+(defonce repl-dev-basis (delay (b/create-basis {:project "deps.edn" :aliases [:repl-dev]})))
 (def target-dir (delay (or (-> @deps-basis :jank :target-dir) "target")))
 
 (defn log [& stuff]
@@ -39,9 +40,12 @@
 
 ;; jank pseudo-deps-edn, powered by https://github.com/babashka/tools.bbuild
 
-(defn ->jank-deps-edn []
-  (let [{:keys [jank classpath]} @deps-basis]
+(defn ->jank-deps-edn [basis]
+  (let [{:keys [jank classpath]} basis]
     (assoc jank :module-path (str/join File/pathSeparator (keys classpath)))))
+
+(defn get-main-module [deps-edn]
+  (-> deps-edn :argmap :main str))
 
 (defn ->flags [flag coll]
   (into [] (mapcat (fn [entry] [flag entry])) coll))
@@ -70,30 +74,30 @@
       (log "error when running clj-kondo! cause:" (:cause (Throwable->map err))))))
 
 (defn prep [{}]
-  (let [{:keys [module-path]} (->jank-deps-edn)]
+  (let [{:keys [module-path]} (->jank-deps-edn @deps-basis)]
     (prep-kondo module-path)))
 
 (defn jank
   {:org.babashka/cli {:exec-args {:args nil}}}
   [{:keys [args]}]
   (log "setting up jank pseudo deps.edn project" args)
-  (let [jedn (->jank-deps-edn)
-        jcmd (jank-command jedn "run-main" {:main-module (str (-> @deps-basis :main))
+  (let [jedn (->jank-deps-edn @deps-basis)
+        jcmd (jank-command jedn "run-main" {:main-module (get-main-module @deps-basis)
                                             :extra ["--" args]})]
     (log jcmd)
     (b/process {:command-args jcmd})))
 
-(defn repl
+(defn repl-dev
   [{}]
-  (let [jedn (->jank-deps-edn)
-        jcmd (jank-command jedn "repl" {:main-module (str (-> @deps-basis :main))})]
+  (let [jedn (->jank-deps-edn @repl-dev-basis)
+        jcmd (jank-command jedn "repl" {:main-module (get-main-module @repl-dev-basis)})]
     (log jcmd)
     (b/process {:command-args jcmd})))
 
 (defn compile-jank
   [{}]
-  (let [jedn (->jank-deps-edn)
+  (let [jedn (->jank-deps-edn @deps-basis)
         jout (str @target-dir "/" (-> @deps-basis :jank :compile-out))
-        jcmd (jank-command jedn "compile" {:main-module (str (-> @deps-basis :main)) :extra ["-o" jout]})]
+        jcmd (jank-command jedn "compile" {:main-module (get-main-module @deps-basis) :extra ["-o" jout]})]
     (log jcmd)
     (b/process {:command-args jcmd})))
