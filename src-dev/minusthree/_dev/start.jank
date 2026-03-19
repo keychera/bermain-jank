@@ -2,8 +2,32 @@
   (:require
    [minusthree.platform.sdl3.sdl3 :as sdl3]))
 
-(sdl3/start)
+(defonce stop* (atom false))
+(defonce refresh* (atom false))
+
+(defn toggle-stop []
+  (if (swap! stop* not)
+    "stopping game..."
+    "starting game..."))
+
+(defn refresh []
+  (reset! refresh* true)
+  "refreshing game...")
+
+(defn start []
+  (let [dev-config (assoc {}
+                          :stop-flag* stop*
+                          :refresh-flag* refresh*)]
+    (future
+      (while true
+        (when (not @stop*)
+          (#'sdl3/start dev-config)
+          (reset! stop* true))))))
+
+(start)
 
 (comment
+  (toggle-stop)
+  (refresh)
 
   ::waiting-for-something-to-happen?)

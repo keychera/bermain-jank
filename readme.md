@@ -13,6 +13,10 @@ devel
 # run-main
 bb jank
 
+# repl-dev
+bb repl
+# and calva connect
+
 # aot compile
 bb lets workaround
 bb compile

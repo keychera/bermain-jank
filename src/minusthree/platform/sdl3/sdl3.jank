@@ -9,61 +9,64 @@
 ;; but without imgui first
 ;; https://hamdy-elzanqali.medium.com/let-there-be-triangles-sdl-gpu-edition-bd82cf2ef615
 
-(defn start []
-  (when (not (cpp/SDL_Init (bit-or cpp/SDL_INIT_VIDEO cpp/SDL_INIT_GAMEPAD)))
-    (throw-sdl-error "Error on cpp/SDL_Init"))
+(defn start
+  ([] (start {}))
+  ([{:keys [stop-flag*]}]
+   (when (not (cpp/SDL_Init (bit-or cpp/SDL_INIT_VIDEO cpp/SDL_INIT_GAMEPAD)))
+     (throw-sdl-error "Error on cpp/SDL_Init"))
 
-  (let [main-scale   (cpp/SDL_GetDisplayContentScale (cpp/SDL_GetPrimaryDisplay))
-        window-flags (bit-or cpp/SDL_WINDOW_RESIZABLE cpp/SDL_WINDOW_HIDDEN cpp/SDL_WINDOW_HIGH_PIXEL_DENSITY)
-        width        (int (* 560 main-scale))
-        height       (int (* 560 main-scale))
-        sdl-window-* (cpp/SDL_CreateWindow "Hello jank + sdl3!" width height window-flags)]
-    (when (cpp/== cpp/nullptr sdl-window-*)
-      (throw-sdl-error "Error on cpp/SDL_CreateWindow"))
-    (cpp/SDL_SetWindowPosition sdl-window-* cpp/SDL_WINDOWPOS_CENTERED cpp/SDL_WINDOWPOS_CENTERED)
-    (cpp/SDL_ShowWindow sdl-window-*)
+   (let [main-scale   (cpp/SDL_GetDisplayContentScale (cpp/SDL_GetPrimaryDisplay))
+         window-flags (bit-or cpp/SDL_WINDOW_RESIZABLE cpp/SDL_WINDOW_HIDDEN cpp/SDL_WINDOW_HIGH_PIXEL_DENSITY)
+         width        (int (* 560 main-scale))
+         height       (int (* 560 main-scale))
+         sdl-window-* (cpp/SDL_CreateWindow "Hello jank + sdl3!" width height window-flags)]
+     (when (cpp/== cpp/nullptr sdl-window-*)
+       (throw-sdl-error "Error on cpp/SDL_CreateWindow"))
+     (cpp/SDL_SetWindowPosition sdl-window-* cpp/SDL_WINDOWPOS_CENTERED cpp/SDL_WINDOWPOS_CENTERED)
+     (cpp/SDL_SetWindowAlwaysOnTop sdl-window-* true)
+     (cpp/SDL_ShowWindow sdl-window-*)
 
-    (let [shader-format (bit-or cpp/SDL_GPU_SHADERFORMAT_SPIRV cpp/SDL_GPU_SHADERFORMAT_DXIL cpp/SDL_GPU_SHADERFORMAT_MSL cpp/SDL_GPU_SHADERFORMAT_METALLIB)
-          gpu-device-*  (cpp/SDL_CreateGPUDevice shader-format true cpp/nullptr)]
-      (when (cpp/== cpp/nullptr gpu-device-*)
-        (throw-sdl-error "Error on cpp/SDL_CreateGPUDevice"))
+     (let [shader-format (bit-or cpp/SDL_GPU_SHADERFORMAT_SPIRV cpp/SDL_GPU_SHADERFORMAT_DXIL cpp/SDL_GPU_SHADERFORMAT_MSL cpp/SDL_GPU_SHADERFORMAT_METALLIB)
+           gpu-device-*  (cpp/SDL_CreateGPUDevice shader-format true cpp/nullptr)]
+       (when (cpp/== cpp/nullptr gpu-device-*)
+         (throw-sdl-error "Error on cpp/SDL_CreateGPUDevice"))
 
-      (when-not (cpp/SDL_ClaimWindowForGPUDevice gpu-device-* sdl-window-*)
-        (throw-sdl-error "Error on cpp/SDL_ClaimWindowForGPUDevice"))
+       (when-not (cpp/SDL_ClaimWindowForGPUDevice gpu-device-* sdl-window-*)
+         (throw-sdl-error "Error on cpp/SDL_ClaimWindowForGPUDevice"))
 
-      (cpp/SDL_SetGPUSwapchainParameters gpu-device-* sdl-window-* cpp/SDL_GPU_SWAPCHAINCOMPOSITION_SDR cpp/SDL_GPU_PRESENTMODE_VSYNC)
+       (cpp/SDL_SetGPUSwapchainParameters gpu-device-* sdl-window-* cpp/SDL_GPU_SWAPCHAINCOMPOSITION_SDR cpp/SDL_GPU_PRESENTMODE_VSYNC)
 
-      (loop [game (time/init)]
-        (let [total (cpp/SDL_GetTicks)
-              delta (- total (time/get-total game))
-              game  (-> (time/update-time game total delta)
-                        (sdl3-events/poll-events))]
-          (cpp/SDL_SetWindowTitle sdl-window-* (str "frametime: " delta " ms"))
+       (loop [game (time/init)]
+         (let [total (cpp/SDL_GetTicks)
+               delta (- total (time/get-total game))
+               game  (-> (time/update-time game total delta)
+                         (sdl3-events/poll-events))]
+           (cpp/SDL_SetWindowTitle sdl-window-* (str "frametime: " delta " ms"))
 
-          (let [command-buffer-* (cpp/SDL_AcquireGPUCommandBuffer gpu-device-*)
-                swapchain-tex-*  (cpp/SDL_GPUTexture*)
-                _ (cpp/SDL_WaitAndAcquireGPUSwapchainTexture command-buffer-* sdl-window-* (cpp/& swapchain-tex-*) cpp/nullptr cpp/nullptr)]
-            (when-not (cpp/== cpp/nullptr swapchain-tex-*)
-              (let [target-info
-                    (doto (cpp/SDL_GPUColorTargetInfo)
-                      (-> .-clear_color (cpp/= (cpp/SDL_FColor (cpp/float 1.0) (cpp/float 1.0) (cpp/float 1.0) (cpp/float 1.0))))
-                      (-> .-load_op     (cpp/= cpp/SDL_GPU_LOADOP_CLEAR))
-                      (-> .-store_op    (cpp/= cpp/SDL_GPU_STOREOP_STORE))
-                      (-> .-texture     (cpp/= swapchain-tex-*)))
+           (let [command-buffer-* (cpp/SDL_AcquireGPUCommandBuffer gpu-device-*)
+                 swapchain-tex-*  (cpp/SDL_GPUTexture*)
+                 _ (cpp/SDL_WaitAndAcquireGPUSwapchainTexture command-buffer-* sdl-window-* (cpp/& swapchain-tex-*) cpp/nullptr cpp/nullptr)]
+             (when-not (cpp/== cpp/nullptr swapchain-tex-*)
+               (let [target-info
+                     (doto (cpp/SDL_GPUColorTargetInfo)
+                       (-> .-clear_color (cpp/= (cpp/SDL_FColor (cpp/float 1.0) (cpp/float 1.0) (cpp/float 1.0) (cpp/float 1.0))))
+                       (-> .-load_op     (cpp/= cpp/SDL_GPU_LOADOP_CLEAR))
+                       (-> .-store_op    (cpp/= cpp/SDL_GPU_STOREOP_STORE))
+                       (-> .-texture     (cpp/= swapchain-tex-*)))
 
-                    renderPass-* (cpp/SDL_BeginGPURenderPass command-buffer-* (cpp/& target-info) 1 cpp/nullptr)]
+                     renderPass-* (cpp/SDL_BeginGPURenderPass command-buffer-* (cpp/& target-info) 1 cpp/nullptr)]
 
-                (cpp/SDL_EndGPURenderPass renderPass-*)))
-            (cpp/SDL_SubmitGPUCommandBuffer command-buffer-*))
+                 (cpp/SDL_EndGPURenderPass renderPass-*)))
+             (cpp/SDL_SubmitGPUCommandBuffer command-buffer-*))
 
-          (when-not (::sdl3-events/end? game)
-            (recur game))))
+           (when-not (or (::sdl3-events/end? game)
+                         (and stop-flag* @stop-flag*))
+             (recur game))))
 
-      (cpp/SDL_WaitForGPUIdle gpu-device-*)
+       (cpp/SDL_WaitForGPUIdle gpu-device-*)
 
-      (cpp/SDL_ReleaseWindowFromGPUDevice gpu-device-* sdl-window-*)
-      (cpp/SDL_DestroyGPUDevice gpu-device-*))
-
-    (println "success!")
-    (cpp/SDL_DestroyWindow sdl-window-*)
-    (cpp/SDL_Quit)))
+       (cpp/SDL_ReleaseWindowFromGPUDevice gpu-device-* sdl-window-*)
+       (cpp/SDL_DestroyGPUDevice gpu-device-*))
+     
+     (cpp/SDL_DestroyWindow sdl-window-*)
+     (cpp/SDL_Quit))))
