@@ -9,6 +9,30 @@
 ;; but without imgui first
 ;; https://hamdy-elzanqali.medium.com/let-there-be-triangles-sdl-gpu-edition-bd82cf2ef615
 
+(cpp/raw "struct Vertex {
+          float x, y, z;
+          float r, g, b, a;
+          };")
+
+(cpp/raw "static Vertex vertices[]
+{
+    {0.0f, 0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f},   // top vertex
+    {-0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f}, // bottom left vertex
+    {0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f}   // bottom right vertex
+};")
+
+(comment
+
+  (.-x (cpp/aget cpp/vertices #cpp 1))
+
+  :-)
+
+(defmacro assign [self member value]
+  `(-> ~self ~member (cpp/= ~value)))
+
+;; https://clojurians.slack.com/archives/C03SRH97FDK/p1757647872126659?thread_ts=1757644640.338809&cid=C03SRH97FDK
+(cpp/raw "void temp_aset(Vertex *p, size_t i, Vertex t) { p[i] = t; }")
+
 (defn start
   ([] (start {}))
   ([{:keys [stop-flag*]}]
@@ -36,37 +60,55 @@
 
        (cpp/SDL_SetGPUSwapchainParameters gpu-device-* sdl-window-* cpp/SDL_GPU_SWAPCHAINCOMPOSITION_SDR cpp/SDL_GPU_PRESENTMODE_VSYNC)
 
-       (loop [game (time/init)]
-         (let [total (cpp/SDL_GetTicks)
-               delta (- total (time/get-total game))
-               game  (-> (time/update-time game total delta)
-                         (sdl3-events/poll-events))]
-           (cpp/SDL_SetWindowTitle sdl-window-* (str "frametime: " delta " ms"))
+       (let [manual-size     (cpp/int (* 3 7 4)) 
+             buffer-info     (doto (cpp/SDL_GPUBufferCreateInfo)
+                               (assign .-size manual-size)
+                               (assign .-usage cpp/SDL_GPU_BUFFERUSAGE_VERTEX))
+             vertex-buffer   (cpp/SDL_CreateGPUBuffer gpu-device-* (cpp/& buffer-info))
 
-           (let [command-buffer-* (cpp/SDL_AcquireGPUCommandBuffer gpu-device-*)
-                 swapchain-tex-*  (cpp/SDL_GPUTexture*)
-                 _ (cpp/SDL_WaitAndAcquireGPUSwapchainTexture command-buffer-* sdl-window-* (cpp/& swapchain-tex-*) cpp/nullptr cpp/nullptr)]
-             (when-not (cpp/== cpp/nullptr swapchain-tex-*)
-               (let [target-info
-                     (doto (cpp/SDL_GPUColorTargetInfo)
-                       (-> .-clear_color (cpp/= (cpp/SDL_FColor (cpp/float 1.0) (cpp/float 1.0) (cpp/float 1.0) (cpp/float 1.0))))
-                       (-> .-load_op     (cpp/= cpp/SDL_GPU_LOADOP_CLEAR))
-                       (-> .-store_op    (cpp/= cpp/SDL_GPU_STOREOP_STORE))
-                       (-> .-texture     (cpp/= swapchain-tex-*)))
+             transfer-info   (doto (cpp/SDL_GPUTransferBufferCreateInfo)
+                               (assign .-size manual-size)
+                               (assign .-usage cpp/SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD))
+             transfer-buffer (cpp/SDL_CreateGPUTransferBuffer gpu-device-* (cpp/& transfer-info))
+             transfer-data   (->> (cpp/SDL_MapGPUTransferBuffer gpu-device-* transfer-buffer false)
+                                  (cpp/cast cpp/Vertex*))
+             _ (dotimes [i manual-size]
+                 (cpp/temp_aset transfer-data (cpp/size_t i) (cpp/aget cpp/vertices (cpp/int i))))
+             _ (cpp/SDL_UnmapGPUTransferBuffer gpu-device-* transfer-buffer)]
 
-                     renderPass-* (cpp/SDL_BeginGPURenderPass command-buffer-* (cpp/& target-info) 1 cpp/nullptr)]
+         (loop [game (time/init)]
+           (let [total (cpp/SDL_GetTicks)
+                 delta (- total (time/get-total game))
+                 game  (-> (time/update-time game total delta)
+                           (sdl3-events/poll-events))]
+             (cpp/SDL_SetWindowTitle sdl-window-* (str "frametime: " delta " ms"))
 
-                 (cpp/SDL_EndGPURenderPass renderPass-*)))
-             (cpp/SDL_SubmitGPUCommandBuffer command-buffer-*))
+             (let [command-buffer-* (cpp/SDL_AcquireGPUCommandBuffer gpu-device-*)
+                   swapchain-tex-*  (cpp/SDL_GPUTexture*)
+                   _                (cpp/SDL_WaitAndAcquireGPUSwapchainTexture command-buffer-* sdl-window-* (cpp/& swapchain-tex-*) cpp/nullptr cpp/nullptr)]
+               (when-not (cpp/== cpp/nullptr swapchain-tex-*)
+                 (let [target-info
+                       (doto (cpp/SDL_GPUColorTargetInfo)
+                         (-> .-clear_color (cpp/= (cpp/SDL_FColor (cpp/float 1.0) (cpp/float 1.0) (cpp/float 1.0) (cpp/float 1.0))))
+                         (-> .-load_op     (cpp/= cpp/SDL_GPU_LOADOP_CLEAR))
+                         (-> .-store_op    (cpp/= cpp/SDL_GPU_STOREOP_STORE))
+                         (-> .-texture     (cpp/= swapchain-tex-*)))
 
-           (when-not (or (::sdl3-events/end? game)
-                         (and stop-flag* @stop-flag*))
-             (recur game))))
+                       renderPass-* (cpp/SDL_BeginGPURenderPass command-buffer-* (cpp/& target-info) 1 cpp/nullptr)]
+
+                   (cpp/SDL_EndGPURenderPass renderPass-*)))
+               (cpp/SDL_SubmitGPUCommandBuffer command-buffer-*))
+
+             (when-not (or (::sdl3-events/end? game)
+                           (and stop-flag* @stop-flag*))
+               (recur game))))
+
+         (cpp/SDL_ReleaseGPUBuffer gpu-device-* vertex-buffer))
 
        (cpp/SDL_WaitForGPUIdle gpu-device-*)
 
        (cpp/SDL_ReleaseWindowFromGPUDevice gpu-device-* sdl-window-*)
        (cpp/SDL_DestroyGPUDevice gpu-device-*))
-     
+
      (cpp/SDL_DestroyWindow sdl-window-*)
      (cpp/SDL_Quit))))
