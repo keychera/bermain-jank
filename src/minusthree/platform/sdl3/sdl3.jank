@@ -1,5 +1,6 @@
 (ns minusthree.platform.sdl3.sdl3
-  (:include "SDL3/sdl.h")
+  (:include "SDL3/sdl.h"
+            "extra.hpp")
   (:require
    [minusthree.engine.time :as time]
    [minusthree.platform.sdl3.common :refer [throw-sdl-error]]
@@ -9,12 +10,7 @@
 ;; but without imgui first
 ;; https://hamdy-elzanqali.medium.com/let-there-be-triangles-sdl-gpu-edition-bd82cf2ef615
 
-(cpp/raw "struct Vertex {
-          float x, y, z;
-          float r, g, b, a;
-          };")
-
-(cpp/raw "static Vertex vertices[]
+(cpp/raw "static extra::Vertex vertices[]
 {
     {0.0f, 0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f},   // top vertex
     {-0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f}, // bottom left vertex
@@ -31,7 +27,8 @@
   `(-> ~self ~member (cpp/= ~value)))
 
 ;; https://clojurians.slack.com/archives/C03SRH97FDK/p1757647872126659?thread_ts=1757644640.338809&cid=C03SRH97FDK
-(cpp/raw "void temp_aset(Vertex *p, size_t i, Vertex t) { p[i] = t; }")
+;; (cpp/raw "void temp_aset(Vertex *p, size_t i, Vertex t) { p[i] = t; }")
+;; the above have linker error when aot compile
 
 (defn start
   ([] (start {}))
@@ -71,9 +68,9 @@
                                (assign .-usage cpp/SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD))
              transfer-buffer (cpp/SDL_CreateGPUTransferBuffer gpu-device (cpp/& transfer-info))
              transfer-data   (->> (cpp/SDL_MapGPUTransferBuffer gpu-device transfer-buffer false)
-                                  (cpp/cast cpp/Vertex*))
+                                  (cpp/cast cpp/extra.Vertex*))
              _ (dotimes [i manual-size]
-                 (cpp/temp_aset transfer-data (cpp/size_t i) (cpp/aget cpp/vertices (cpp/int i))))
+                 (cpp/extra.temp_aset transfer-data (cpp/size_t i) (cpp/aget cpp/vertices (cpp/int i))))
              _ (cpp/SDL_UnmapGPUTransferBuffer gpu-device transfer-buffer)]
 
          (loop [game (time/init)]

@@ -1,6 +1,6 @@
 {:paths ["src"]
  :deps {io.github.keychera/odoyle-rules {:git/sha "15c5f2cc0905cf54bd76db627f2114721cf75e32"}}
- :jank {:include-dirs ["../.selfbuild/sdl3/include"]
+ :jank {:include-dirs ["../.selfbuild/sdl3/include" "src-cpp"]
         :library-dirs ["../.selfbuild/sdl3/build/Release"]
         :linked-libraries ["sdl3"]
         :compile-out "bermain"}
