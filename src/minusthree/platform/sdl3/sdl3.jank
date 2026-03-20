@@ -26,6 +26,13 @@
 (defmacro assign [self member value]
   `(-> ~self ~member (cpp/= ~value)))
 
+(defmacro must-return [form]
+  (let [first-sym (str (first form))]
+    `(let [ret# ~form]
+       (when (cpp/== cpp/nullptr ret#)
+         (throw-sdl-error (str "Error on " ~first-sym)))
+       ret#)))
+
 ;; https://clojurians.slack.com/archives/C03SRH97FDK/p1757647872126659?thread_ts=1757644640.338809&cid=C03SRH97FDK
 ;; (cpp/raw "void temp_aset(Vertex *p, size_t i, Vertex t) { p[i] = t; }")
 ;; the above have linker error when aot compile
@@ -74,9 +81,7 @@
          (cpp/SDL_UnmapGPUTransferBuffer gpu-device transfer-buffer)
 
          (let [code-size   (cpp/size_t)
-               vert-code   (cpp/SDL_LoadFile "shaders/vertex.spv" (cpp/& code-size))
-               _           (when (cpp/== cpp/nullptr vert-code)
-                             (throw-sdl-error "Error on cpp/SDL_LoadFile"))
+               vert-code   (must-return (cpp/SDL_LoadFile "shaders/vertex.spv" (cpp/& code-size)))
                vert-info   (doto (cpp/SDL_GPUShaderCreateInfo code-size (cpp/cast cpp/Uint8* vert-code) #cpp "main")
                              (assign .-format cpp/SDL_GPU_SHADERFORMAT_SPIRV)
                              (assign .-stage cpp/SDL_GPU_SHADERSTAGE_VERTEX)
@@ -84,8 +89,19 @@
                              (assign .-num_storage_buffers #cpp 0)
                              (assign .-num_storage_textures #cpp 0)
                              (assign .-num_uniform_buffers #cpp 0))
-               vert-shader (cpp/SDL_CreateGPUShader gpu-device (cpp/& vert-info))]
+               vert-shader (cpp/SDL_CreateGPUShader gpu-device (cpp/& vert-info))
+               ; can we reuse code-size?
+               frag-code   (must-return (cpp/SDL_LoadFile "shaders/fragment.spv" (cpp/& code-size)))
+               frag-info   (doto (cpp/SDL_GPUShaderCreateInfo code-size (cpp/cast cpp/Uint8* frag-code) #cpp "main")
+                             (assign .-format cpp/SDL_GPU_SHADERFORMAT_SPIRV)
+                             (assign .-stage cpp/SDL_GPU_SHADERSTAGE_FRAGMENT)
+                             (assign .-num_samplers #cpp 0)
+                             (assign .-num_storage_buffers #cpp 0)
+                             (assign .-num_storage_textures #cpp 0)
+                             (assign .-num_uniform_buffers #cpp 0))
+               frag-shader (cpp/SDL_CreateGPUShader gpu-device (cpp/& frag-info))]
            (cpp/SDL_free vert-code)
+           (cpp/SDL_free frag-code)
 
            (loop [game (time/init)]
              (let [total (cpp/SDL_GetTicks)
@@ -126,7 +142,8 @@
                              (and stop-atom @stop-atom))
                  (recur game))))
 
-           (cpp/SDL_ReleaseGPUShader gpu-device vert-shader))
+           (cpp/SDL_ReleaseGPUShader gpu-device vert-shader)
+           (cpp/SDL_ReleaseGPUShader gpu-device frag-shader))
 
          (cpp/SDL_ReleaseGPUBuffer gpu-device vertex-buffer)
          (cpp/SDL_ReleaseGPUTransferBuffer gpu-device transfer-buffer))
