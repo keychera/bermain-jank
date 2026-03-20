@@ -60,7 +60,7 @@
 
        (cpp/SDL_SetGPUSwapchainParameters gpu-device-* sdl-window-* cpp/SDL_GPU_SWAPCHAINCOMPOSITION_SDR cpp/SDL_GPU_PRESENTMODE_VSYNC)
 
-       (let [manual-size     (cpp/int (* 3 7 4)) 
+       (let [manual-size     (cpp/int (* 3 #_vertices 7 #_floats 4 #_float-size))
              buffer-info     (doto (cpp/SDL_GPUBufferCreateInfo)
                                (assign .-size manual-size)
                                (assign .-usage cpp/SDL_GPU_BUFFERUSAGE_VERTEX))
@@ -84,8 +84,21 @@
              (cpp/SDL_SetWindowTitle sdl-window-* (str "frametime: " delta " ms"))
 
              (let [command-buffer-* (cpp/SDL_AcquireGPUCommandBuffer gpu-device-*)
-                   swapchain-tex-*  (cpp/SDL_GPUTexture*)
-                   _                (cpp/SDL_WaitAndAcquireGPUSwapchainTexture command-buffer-* sdl-window-* (cpp/& swapchain-tex-*) cpp/nullptr cpp/nullptr)]
+                   copy-pass  (cpp/SDL_BeginGPUCopyPass command-buffer-*)
+                   buffer-loc (doto (cpp/SDL_GPUTransferBufferLocation)
+                                (assign .-transfer_buffer transfer-buffer)
+                                (assign .-offset #cpp 0))
+                   region     (doto (cpp/SDL_GPUBufferRegion)
+                                (assign .-buffer vertex-buffer)
+                                (assign .-size manual-size)
+                                (assign .-offset #cpp 0))]
+               (cpp/SDL_UploadToGPUBuffer copy-pass (cpp/& buffer-loc) (cpp/& region) true)
+               (cpp/SDL_EndGPUCopyPass copy-pass)
+               (cpp/SDL_SubmitGPUCommandBuffer command-buffer-*))
+
+             (let [command-buffer-* (cpp/SDL_AcquireGPUCommandBuffer gpu-device-*)
+                   swapchain-tex-*  (cpp/SDL_GPUTexture*)]
+               (cpp/SDL_WaitAndAcquireGPUSwapchainTexture command-buffer-* sdl-window-* (cpp/& swapchain-tex-*) cpp/nullptr cpp/nullptr)
                (when-not (cpp/== cpp/nullptr swapchain-tex-*)
                  (let [target-info
                        (doto (cpp/SDL_GPUColorTargetInfo)
@@ -103,7 +116,8 @@
                            (and stop-flag* @stop-flag*))
                (recur game))))
 
-         (cpp/SDL_ReleaseGPUBuffer gpu-device-* vertex-buffer))
+         (cpp/SDL_ReleaseGPUBuffer gpu-device-* vertex-buffer)
+         (cpp/SDL_ReleaseGPUTransferBuffer gpu-device-* transfer-buffer))
 
        (cpp/SDL_WaitForGPUIdle gpu-device-*)
 
