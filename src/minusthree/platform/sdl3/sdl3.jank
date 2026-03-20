@@ -3,7 +3,7 @@
             "extra.hpp")
   (:require
    [minusthree.engine.time :as time]
-   [minusthree.platform.sdl3.common :refer [throw-sdl-error]]
+   [minusthree.platform.sdl3.common :refer [assign must-be-true must-return]]
    [minusthree.platform.sdl3.sdl3-events :as sdl3-events]))
 
 ;; learning from https://github.com/ocornut/imgui/blob/master/examples/example_sdl3_sdlgpu3/main.cpp
@@ -23,16 +23,6 @@
 
   :-)
 
-(defmacro assign [self member value]
-  `(-> ~self ~member (cpp/= ~value)))
-
-(defmacro must-return [form]
-  (let [first-sym (str (first form))]
-    `(let [ret# ~form]
-       (when (cpp/== cpp/nullptr ret#)
-         (throw-sdl-error (str "Error on " ~first-sym)))
-       ret#)))
-
 ;; https://clojurians.slack.com/archives/C03SRH97FDK/p1757647872126659?thread_ts=1757644640.338809&cid=C03SRH97FDK
 ;; (cpp/raw "void temp_aset(Vertex *p, size_t i, Vertex t) { p[i] = t; }")
 ;; the above have linker error when aot compile
@@ -40,27 +30,21 @@
 (defn start
   ([] (start {}))
   ([{:keys [stop-atom]}]
-   (when (not (cpp/SDL_Init (bit-or cpp/SDL_INIT_VIDEO cpp/SDL_INIT_GAMEPAD)))
-     (throw-sdl-error "Error on cpp/SDL_Init"))
+   (must-be-true (cpp/SDL_Init (bit-or cpp/SDL_INIT_VIDEO cpp/SDL_INIT_GAMEPAD)))
 
    (let [main-scale   (cpp/SDL_GetDisplayContentScale (cpp/SDL_GetPrimaryDisplay))
          window-flags (bit-or cpp/SDL_WINDOW_RESIZABLE cpp/SDL_WINDOW_HIDDEN cpp/SDL_WINDOW_HIGH_PIXEL_DENSITY)
          width        (int (* 560 main-scale))
          height       (int (* 560 main-scale))
-         sdl-window   (cpp/SDL_CreateWindow "Hello jank + sdl3!" width height window-flags)]
-     (when (cpp/== cpp/nullptr sdl-window)
-       (throw-sdl-error "Error on cpp/SDL_CreateWindow"))
+         sdl-window   (must-return (cpp/SDL_CreateWindow "Hello jank + sdl3!" width height window-flags))]
      (cpp/SDL_SetWindowPosition sdl-window cpp/SDL_WINDOWPOS_CENTERED cpp/SDL_WINDOWPOS_CENTERED)
      (cpp/SDL_SetWindowAlwaysOnTop sdl-window true)
      (cpp/SDL_ShowWindow sdl-window)
 
      (let [shader-format (bit-or cpp/SDL_GPU_SHADERFORMAT_SPIRV cpp/SDL_GPU_SHADERFORMAT_MSL)
-           gpu-device    (cpp/SDL_CreateGPUDevice shader-format true cpp/nullptr)]
-       (when (cpp/== cpp/nullptr gpu-device)
-         (throw-sdl-error "Error on cpp/SDL_CreateGPUDevice"))
+           gpu-device    (must-return (cpp/SDL_CreateGPUDevice shader-format true cpp/nullptr))]
 
-       (when-not (cpp/SDL_ClaimWindowForGPUDevice gpu-device sdl-window)
-         (throw-sdl-error "Error on cpp/SDL_ClaimWindowForGPUDevice"))
+       (must-be-true (cpp/SDL_ClaimWindowForGPUDevice gpu-device sdl-window))
 
        (cpp/SDL_SetGPUSwapchainParameters gpu-device sdl-window cpp/SDL_GPU_SWAPCHAINCOMPOSITION_SDR cpp/SDL_GPU_PRESENTMODE_VSYNC)
 

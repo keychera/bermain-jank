@@ -4,3 +4,18 @@
   (let [sdl-error (cpp/cast cpp/std.string (cpp/SDL_GetError))]
     (println "[sdl3 error]" msg ", error from sdl:" sdl-error)
     (throw (ex-info msg {} {:data sdl-error}))))
+
+(defmacro must-be-true [form]
+  (let [first-sym (str (first form))]
+    `(when (not ~form)
+       (throw-sdl-error (str "Error on " ~first-sym)))))
+
+(defmacro must-return [form]
+  (let [first-sym (str (first form))]
+    `(let [ret# ~form]
+       (when (cpp/== cpp/nullptr ret#)
+         (throw-sdl-error (str "Error on " ~first-sym)))
+       ret#)))
+
+(defmacro assign [self member value]
+  `(-> ~self ~member (cpp/= ~value)))
