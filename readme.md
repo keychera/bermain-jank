@@ -5,14 +5,17 @@ prereq:
 - and jank's cpp toolchain (windows: [msys2](https://www.msys2.org/))
 - [babashka](https://book.babashka.org/#getting_started)
 - [Vulkan SDK](https://vulkan.lunarg.com/) 
+- and more listed in `bb prep` section
+
+this jank project uses deps.edn via [tools.bbuild](https://github.com/babashka/tools.bbuild) (this sould be automatically fetched by bb on the first call)
 
 preparation (need to run only once)
 ```sh
 bb prep
 # this does
-bb lets prep-kondo
-bb lets build-sdl3
-bb lets compile-shaders
+bb lets prep-kondo # this shells out to clj-kondo
+bb lets build-sdl3 # this shells out to whatever SDL3 need to build
+bb lets compile-shaders # this shells out to Vulkan SDK's `glslc`
 ```
 
 devel
@@ -21,7 +24,7 @@ devel
 bb jank
 
 # repl-dev
-bb repl
+bb repl-dev
 # and calva connect
 
 # aot compile
