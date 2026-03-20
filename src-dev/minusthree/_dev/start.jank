@@ -14,17 +14,17 @@
   (reset! refresh-atom true)
   "refreshing game...")
 
-(defn start []
-  (let [dev-config (assoc {}
-                          :stop-atom stop-atom
-                          :refresh-atom refresh-atom)]
+(defn dev-start []
+  (let [dev-config {:stop-atom stop-atom
+                    :refresh-atom refresh-atom}]
     (future
       (while true
         (when (not @stop-atom)
           (#'sdl3/start dev-config)
           (reset! stop-atom true))))))
 
-(start)
+(println "[minusthree] repl dev")
+(dev-start)
 
 (comment
   (toggle-stop)
