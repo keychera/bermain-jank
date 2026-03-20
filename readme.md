@@ -33,9 +33,12 @@ bb compile
 
 # about workaround:
 # when running with run-main, jank require `lib` prefix for .dll files, while the compiled one require no `lib` prefix
+```
 
-# clean
+cleaning
+```sh
 bb lets clean
+bb lets clean-shaders
 ```
 
 ## note on wrong expectation

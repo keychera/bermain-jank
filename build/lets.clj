@@ -25,7 +25,7 @@
     (fs/create-dirs sdl-build)
     (b/process {:dir sdl-build :command-args ["cmake" "-DCMAKE_BUILD_TYPE=Release" ".."] :out :inherit :err :inherit})
     (b/process {:dir sdl-build :command-args ["cmake" "--build" "." "--config" "Release" "--parallel"] :out :inherit :err :inherit})
-    ;; workaround
+    ;; workaround, reported here https://github.com/ikappaki/jank-win/issues/37
     (fs/move (str sdl-build "/Release/SDL3.dll") (str sdl-build "/Release/libSDL3.dll"))
     (log "build-sdl3 done")))
 
@@ -62,18 +62,34 @@
            [command main-module]
            extra))))
 
+(def shader-home "shaders")
+
 (defn compile-shaders
   [{}]
-  (let [shaders (eduction
-                 (filter (every-pred fs/regular-file?
-                                     #(= (fs/extension %) "glsl")))
-                 (file-seq (fs/file "shaders")))]
-    (doseq [shader shaders]
-      (let [parent      (fs/parent shader)
-            shader-name (-> shader fs/file-name fs/strip-ext)
-            spv-out     (str parent "/" shader-name ".spv")]
+  (let [shaders
+        (eduction
+         (filter (every-pred fs/regular-file?
+                             #(or (str/ends-with? % ".frag.glsl")
+                                  (str/ends-with? % ".vert.glsl"))))
+         (map (fn [shader-file]
+                (let [[shader-name shader-type] (str/split (fs/file-name shader-file) #"\.")]
+                  [(fs/parent shader-file) (str shader-file) shader-name shader-type])))
+         (file-seq (fs/file shader-home)))]
+    (doseq [[parent shader-file shader-name shader-type] shaders]
+      (let [spv-out  (str parent "/" shader-name ".spv")
+            -fshader (case shader-type
+                       "vert" "-fshader-stage=vertex"
+                       "frag" "-fshader-stage=fragment")]
         (println "compiling to" spv-out)
-        (b/process {:command-args ["glslc" "-fshader-stage=vertex" (str shader) "-o" spv-out]})))))
+        (b/process {:command-args ["glslc" -fshader shader-file "-o" spv-out]})))))
+
+(defn clean-shaders 
+  [{}]
+  (doseq [spv (eduction
+               (filter (every-pred fs/regular-file? #(str/ends-with? % ".spv")))
+               (file-seq (fs/file shader-home)))]
+    (println "deleting" spv)
+    (fs/delete spv)))
 
 (defn prep-kondo
   [{}]
