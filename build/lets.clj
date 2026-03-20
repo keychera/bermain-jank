@@ -62,20 +62,36 @@
            [command main-module]
            extra))))
 
-(defn clean [& _]
-  (println "cleaning target...")
-  (b/delete {:path @target-dir}))
+(defn compile-shaders
+  [{}]
+  (let [shaders (eduction
+                 (filter (every-pred fs/regular-file?
+                                     #(= (fs/extension %) "glsl")))
+                 (file-seq (fs/file "shaders")))]
+    (doseq [shader shaders]
+      (let [parent      (fs/parent shader)
+            shader-name (-> shader fs/file-name fs/strip-ext)
+            spv-out     (str parent "/" shader-name ".spv")]
+        (println "compiling to" spv-out)
+        (b/process {:command-args ["glslc" "-fshader-stage=vertex" (str shader) "-o" spv-out]})))))
 
-(defn prep-kondo [classpath #_is-module-path]
+(defn prep-kondo
+  [{}]
   (try
-    (b/process {:command-args ["clj-kondo" "--lint" classpath
-                               "--dependencies" "--copy-configs" "--skip-lint"]})
+    (let [{:keys [module-path]} (->jank-deps-edn @deps-basis)]
+      (b/process {:command-args ["clj-kondo" "--lint" module-path
+                                 "--dependencies" "--copy-configs" "--skip-lint"]}))
     (catch Throwable err
       (log "error when running clj-kondo! cause:" (:cause (Throwable->map err))))))
 
-(defn prep [{}]
-  (let [{:keys [module-path]} (->jank-deps-edn @deps-basis)]
-    (prep-kondo module-path)))
+(defn prep [args]
+  (prep-kondo args)
+  (build-sdl3 args)
+  (compile-shaders args))
+
+(defn clean [& _]
+  (println "cleaning target...")
+  (b/delete {:path @target-dir}))
 
 (defn jank
   {:org.babashka/cli {:exec-args {:args nil}}}

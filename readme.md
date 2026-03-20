@@ -1,11 +1,18 @@
 # bermain.game
 
-need jank + babashka, tested only in windows. most likely also require c++ compiler toolchain.
+prereq:
+- [jank](https://book.jank-lang.org/getting-started/01-installation.html)
+- and jank's cpp toolchain (windows: [msys2](https://www.msys2.org/))
+- [babashka](https://book.babashka.org/#getting_started)
+- [Vulkan SDK](https://vulkan.lunarg.com/) 
 
 preparation (need to run only once)
-```
-bb lets build-sdl3
+```sh
 bb prep
+# this does
+bb lets prep-kondo
+bb lets build-sdl3
+bb lets compile-shaders
 ```
 
 devel
