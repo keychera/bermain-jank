@@ -13,31 +13,6 @@
 (defn log [& stuff]
   (apply println "[bermain@jank]" stuff))
 
-;; some manual selfbuild
-(def selfbuild-home "../.selfbuild")
-
-;; https://mccue.dev/pages/12-26-24-sdl3-java
-(defn build-sdl3
-  [{}]
-  (let [sdl-home  (str selfbuild-home "/sdl3")
-        sdl-build (str sdl-home "/build")]
-    (b/process {:command-args ["git" "clone" "--depth" "1" "https://github.com/libsdl-org/SDL" sdl-home] :out :inherit :err :inherit})
-    (fs/create-dirs sdl-build)
-    (b/process {:dir sdl-build :command-args ["cmake" "-DCMAKE_BUILD_TYPE=Release" ".."] :out :inherit :err :inherit})
-    (b/process {:dir sdl-build :command-args ["cmake" "--build" "." "--config" "Release" "--parallel"] :out :inherit :err :inherit})
-    ;; workaround, reported here https://github.com/ikappaki/jank-win/issues/37
-    (fs/move (str sdl-build "/Release/SDL3.dll") (str sdl-build "/Release/libSDL3.dll"))
-    (log "build-sdl3 done")))
-
-(defn check [& _]
-  (prn @deps-basis))
-
-(defn workaround [& _]
-  (let [sdl-home  (str selfbuild-home "/sdl3")
-        sdl-build (str sdl-home "/build")]
-    (fs/copy (str sdl-build "/Release/libSDL3.dll") (str @target-dir "/SDL3.dll") {:replace-existing true})
-    (log "workaround done")))
-
 ;; jank pseudo-deps-edn, powered by https://github.com/babashka/tools.bbuild
 
 (defn ->jank-deps-edn [basis]
@@ -63,6 +38,44 @@
             (->flags "-l" linked-libraries)
             [command main-module]
             extra)))))
+
+(defn prep-kondo
+  [{}]
+  (try
+    (let [{:keys [module-path]} (->jank-deps-edn @deps-basis)]
+      (b/process {:command-args ["clj-kondo" "--lint" module-path
+                                 "--dependencies" "--copy-configs" "--skip-lint"]}))
+    (catch Throwable err
+      (log "error when running clj-kondo! cause:" (:cause (Throwable->map err))))))
+
+(defn tell-clangd ;; about our project
+  [{}]
+  (spit "compile_flags.txt"
+        (->> (jank-command (->jank-deps-edn @deps-basis))
+             (drop 3)
+             (str/join "\n"))))
+
+;; some manual selfbuild
+(def selfbuild-home "../.selfbuild")
+
+;; https://mccue.dev/pages/12-26-24-sdl3-java
+(defn build-sdl3
+  [{}]
+  (let [sdl-home  (str selfbuild-home "/sdl3")
+        sdl-build (str sdl-home "/build")]
+    (b/process {:command-args ["git" "clone" "--depth" "1" "https://github.com/libsdl-org/SDL" sdl-home] :out :inherit :err :inherit})
+    (fs/create-dirs sdl-build)
+    (b/process {:dir sdl-build :command-args ["cmake" "-DCMAKE_BUILD_TYPE=Release" ".."] :out :inherit :err :inherit})
+    (b/process {:dir sdl-build :command-args ["cmake" "--build" "." "--config" "Release" "--parallel"] :out :inherit :err :inherit})
+    ;; workaround, reported here https://github.com/ikappaki/jank-win/issues/37
+    (fs/move (str sdl-build "/Release/SDL3.dll") (str sdl-build "/Release/libSDL3.dll"))
+    (log "build-sdl3 done")))
+
+(defn workaround [& _]
+  (let [sdl-home  (str selfbuild-home "/sdl3")
+        sdl-build (str sdl-home "/build")]
+    (fs/copy (str sdl-build "/Release/libSDL3.dll") (str @target-dir "/SDL3.dll") {:replace-existing true})
+    (log "workaround done")))
 
 (def shader-home "shaders")
 
@@ -92,22 +105,6 @@
                (file-seq (fs/file shader-home)))]
     (println "deleting" spv)
     (fs/delete spv)))
-
-(defn prep-kondo
-  [{}]
-  (try
-    (let [{:keys [module-path]} (->jank-deps-edn @deps-basis)]
-      (b/process {:command-args ["clj-kondo" "--lint" module-path
-                                 "--dependencies" "--copy-configs" "--skip-lint"]}))
-    (catch Throwable err
-      (log "error when running clj-kondo! cause:" (:cause (Throwable->map err))))))
-
-(defn tell-clangd ;; about our project
-  [{}]
-  (spit "compile_flags.txt"
-        (->> (jank-command (->jank-deps-edn @deps-basis))
-             (drop 3)
-             (str/join "\n"))))
 
 (defn prep [args]
   (prep-kondo args)
