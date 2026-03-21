@@ -153,20 +153,21 @@
                (let [command-buffer (cpp/SDL_AcquireGPUCommandBuffer gpu-device)
                      swapchain-tex  (cpp/SDL_GPUTexture*)]
                  (cpp/SDL_WaitAndAcquireGPUSwapchainTexture command-buffer sdl-window (cpp/& swapchain-tex) cpp/nullptr cpp/nullptr)
+                 
                  (when-not (cpp/== cpp/nullptr swapchain-tex)
                    (let [target-info
                          (doto (cpp/SDL_GPUColorTargetInfo)
-                           (-> .-clear_color (cpp/= (cpp/SDL_FColor (cpp/float 1.0) (cpp/float 1.0) (cpp/float 1.0) (cpp/float 1.0))))
-                           (-> .-load_op     (cpp/= cpp/SDL_GPU_LOADOP_CLEAR))
-                           (-> .-store_op    (cpp/= cpp/SDL_GPU_STOREOP_STORE))
-                           (-> .-texture     (cpp/= swapchain-tex)))
+                           (assign .-clear_color (cpp/SDL_FColor (cpp/float 1.0) (cpp/float 1.0) (cpp/float 1.0) (cpp/float 1.0)))
+                           (assign .-load_op     cpp/SDL_GPU_LOADOP_CLEAR)
+                           (assign .-store_op    cpp/SDL_GPU_STOREOP_STORE)
+                           (assign .-texture     swapchain-tex))
                          render-pass (cpp/SDL_BeginGPURenderPass command-buffer (cpp/& target-info) #cpp 1 cpp/nullptr)]
-
                      (cpp/SDL_BindGPUGraphicsPipeline render-pass graphics-pipeline)
-                     (let [buffer-bindings ((cpp/type "std::array<SDL_GPUBufferBinding, 1>"))
-                           _ (doto (cpp/aget buffer-bindings #cpp 0)
-                               (assign .-buffer vertex-buffer)
-                               (assign .-offset #cpp 0))]
+
+                     (let [buffer-bindings ((cpp/type "std::array<SDL_GPUBufferBinding, 1>"))]
+                       (doto (cpp/aget buffer-bindings #cpp 0)
+                         (assign .-buffer vertex-buffer)
+                         (assign .-offset #cpp 0))
                        (cpp/SDL_BindGPUVertexBuffers render-pass #cpp 0 (cpp/cast (cpp/type "SDL_GPUBufferBinding const*") (.data buffer-bindings)) #cpp 1)
 
                        (doto cpp/extra.timeUniform (assign .-time (cpp/float (/ (cpp/SDL_GetTicksNS) (cpp/float 1e9)))))
