@@ -1,6 +1,8 @@
 (ns minusthree.platform.sdl3.sdl3
-  (:include "SDL3/sdl.h"
-            "extra.hpp")
+  (:include
+   "SDL3/SDL.h"
+   "SDL3_image/SDL_image.h"
+   "extra.hpp")
   (:require
    [minusthree.engine.time :as time]
    [minusthree.platform.sdl3.common :refer [assign must-be-true must-return]]
@@ -31,6 +33,10 @@
   ([] (start {}))
   ([{:keys [stop-atom]}]
    (must-be-true (cpp/SDL_Init (bit-or cpp/SDL_INIT_VIDEO cpp/SDL_INIT_GAMEPAD)))
+
+   ;; "resources/horse/running/horse-1.png" does not exist, want to see error
+   (let [img (must-return (cpp/IMG_Load "resources/horse/running/horse-1.png"))]
+     (cpp/SDL_DestroySurface img))
 
    (let [main-scale   (cpp/SDL_GetDisplayContentScale (cpp/SDL_GetPrimaryDisplay))
          window-flags (bit-or cpp/SDL_WINDOW_RESIZABLE cpp/SDL_WINDOW_HIDDEN cpp/SDL_WINDOW_HIGH_PIXEL_DENSITY)
@@ -153,7 +159,7 @@
                (let [command-buffer (cpp/SDL_AcquireGPUCommandBuffer gpu-device)
                      swapchain-tex  (cpp/SDL_GPUTexture*)]
                  (cpp/SDL_WaitAndAcquireGPUSwapchainTexture command-buffer sdl-window (cpp/& swapchain-tex) cpp/nullptr cpp/nullptr)
-                 
+
                  (when-not (cpp/== cpp/nullptr swapchain-tex)
                    (let [target-info
                          (doto (cpp/SDL_GPUColorTargetInfo)

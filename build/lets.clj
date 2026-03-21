@@ -61,7 +61,7 @@
   (with-open [input-stream (:body (http/get url {:as :stream}))]
     (io/copy input-stream (io/file to-file))))
 
-(def dot-libs "../.libs")
+(def dot-libs ".libs")
 (def sdl-release "/SDL3-3.4.2/x86_64-w64-mingw32")
 
 (defn download-sdl3
@@ -77,10 +77,25 @@
     (log (str "  include dir: " sdl-dir "/include"))
     (log (str "  bin dir: " sdl-dir "/bin"))))
 
+(def sdl-image-release "/SDL3_image-3.4.0/x86_64-w64-mingw32")
+
+(defn download-sdl3-image
+  [{}]
+  (let [sdl-devel (str dot-libs "/sdl3-image.tar.gz")
+        sdl-dir   (str dot-libs sdl-image-release)]
+    (io/make-parents sdl-devel)
+    (download "https://github.com/libsdl-org/SDL_image/releases/download/release-3.4.0/SDL3_image-devel-3.4.0-mingw.tar.gz" sdl-devel)
+    (b/process {:command-args ["tar" "-xzvf" sdl-devel "-C" dot-libs]})
+    ;; workaround, reported here https://github.com/ikappaki/jank-win/issues/37
+    (fs/copy (str sdl-dir "/bin/SDL3_image.dll") (str sdl-dir "/bin/libSDL3_image.dll") {:replace-existing true})
+    (log "download-sdl3-image done")
+    (log (str "  include dir: " sdl-dir "/include"))
+    (log (str "  bin dir: " sdl-dir "/bin"))))
+
 (defn workaround [& _]
-  (let [sdl-dir  (str dot-libs sdl-release)]
-    (fs/copy (str sdl-dir "/bin/SDL3.dll") (str @target-dir "/SDL3.dll") {:replace-existing true})
-    (log "workaround done")))
+  (fs/copy (str dot-libs sdl-release "/bin/SDL3.dll") (str @target-dir "/SDL3.dll") {:replace-existing true})
+  (fs/copy (str dot-libs sdl-image-release "/bin/SDL3_image.dll") (str @target-dir "/SDL3_image.dll") {:replace-existing true})
+  (log "workaround done"))
 
 (def shader-home "shaders")
 
@@ -144,4 +159,9 @@
         jout (str @target-dir "/" (-> @deps-basis :jank :compile-out))
         jcmd (jank-command jedn "compile" {:main-module (get-main-module @deps-basis) :extra ["-o" jout]})]
     (log jcmd)
-    (b/process {:command-args jcmd})))
+    (b/process {:command-args jcmd})
+    (workaround)))
+
+(defn play [& _]
+   (let [main-exe (str @target-dir "/" (-> @deps-basis :jank :compile-out) ".exe")]
+     (b/process {:command-args [main-exe]})))

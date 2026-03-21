@@ -15,6 +15,6 @@ target
 *.so
 *.spv
 
-.selfbuild
+.libs
 # for clangd
 compile_flags.txt 
