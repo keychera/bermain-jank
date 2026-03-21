@@ -67,3 +67,11 @@ while tinkering, these were some aspect about jank that took me a bit of time to
 (cpp/SDL_Event)
 ; is the same?
 ```
+
+## problem we encountered
+
+1. we can't include `stb_image.h`. need some small repro case, we got some weird error like 
+
+```sh
+JIT session error: Symbols not found: [ __emutls_get_address ]
+```
