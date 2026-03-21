@@ -94,7 +94,7 @@
 
 (defn workaround [& _]
   (fs/copy (str dot-libs sdl-release "/bin/SDL3.dll") (str @target-dir "/SDL3.dll") {:replace-existing true})
-  (fs/copy (str dot-libs sdl-image-release "/bin/SDL3_image.dll") (str @target-dir "/SDL3_image.dll") {:replace-existing true})
+  #_(fs/copy (str dot-libs sdl-image-release "/bin/SDL3_image.dll") (str @target-dir "/SDL3_image.dll") {:replace-existing true})
   (log "workaround done"))
 
 (def shader-home "shaders")
@@ -163,5 +163,5 @@
     (workaround)))
 
 (defn play [& _]
-   (let [main-exe (str @target-dir "/" (-> @deps-basis :jank :compile-out) ".exe")]
-     (b/process {:command-args [main-exe]})))
+  (let [main-exe (str @target-dir "/" (-> @deps-basis :jank :compile-out) ".exe")]
+    (b/process {:command-args [main-exe]})))

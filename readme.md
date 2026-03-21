@@ -77,6 +77,9 @@ while tinkering, these were some aspect about jank that took me a bit of time to
 JIT session error: Symbols not found: [ __emutls_get_address ]
 ```
 
+huh, the above solved with
+https://clojurians.slack.com/archives/C03SRH97FDK/p1757880484171019?thread_ts=1757879532.260299&cid=C03SRH97FDK
+
 2. `SDL_image.h` seems to be able to load but `IMG_Load` error with
 
 ```sh

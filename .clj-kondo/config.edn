@@ -1,2 +1,3 @@
-{:linters {:unknown-ns-option {:level :off}
+{:linters {:unresolved-symbol {:exclude [include]}
+           :unknown-ns-option {:level :off}
            :unresolved-namespace {:exclude [cpp]}}}

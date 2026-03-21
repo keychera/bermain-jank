@@ -1,12 +1,19 @@
 (ns minusthree.platform.sdl3.sdl3
   (:include
    "SDL3/SDL.h"
-   "SDL3_image/SDL_image.h"
    "extra.hpp")
   (:require
    [minusthree.engine.time :as time]
    [minusthree.platform.sdl3.common :refer [assign must-be-true must-return]]
    [minusthree.platform.sdl3.sdl3-events :as sdl3-events]))
+
+(cpp/raw "#define STB_IMAGE_IMPLEMENTATION")
+;; https://clojurians.slack.com/archives/C03SRH97FDK/p1757880484171019?thread_ts=1757879532.260299&cid=C03SRH97FDK
+(cpp/raw "#define STBI_NO_THREAD_LOCALS 1")
+(cpp/raw "#define STBI_MALLOC SDL_malloc")
+(cpp/raw "#define STBI_REALLOC SDL_realloc")
+(cpp/raw "#define STBI_FREE SDL_free")
+(include "stb_image.h")
 
 ;; learning from https://github.com/ocornut/imgui/blob/master/examples/example_sdl3_sdlgpu3/main.cpp
 ;; but without imgui first
@@ -34,9 +41,16 @@
   ([{:keys [stop-atom]}]
    (must-be-true (cpp/SDL_Init (bit-or cpp/SDL_INIT_VIDEO cpp/SDL_INIT_GAMEPAD)))
 
+   (let [width (cpp/int)
+         height (cpp/int)
+         channel-count (cpp/int)
+         img (cpp/stbi_load "resources/horse/running/horse-0.png" (cpp/& width) (cpp/& height) (cpp/& channel-count) #cpp 4)]
+     (println width height channel-count)
+     (cpp/stbi_image_free img))
+
    ;; "resources/horse/running/horse-1.png" does not exist, want to see error
-   (let [img (must-return (cpp/IMG_Load "resources/horse/running/horse-1.png"))]
-     (cpp/SDL_DestroySurface img))
+   #_(let [img (must-return (cpp/IMG_Load "resources/horse/running/horse-1.png"))]
+       (cpp/SDL_DestroySurface img))
 
    (let [main-scale   (cpp/SDL_GetDisplayContentScale (cpp/SDL_GetPrimaryDisplay))
          window-flags (bit-or cpp/SDL_WINDOW_RESIZABLE cpp/SDL_WINDOW_HIDDEN cpp/SDL_WINDOW_HIGH_PIXEL_DENSITY)
