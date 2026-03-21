@@ -8,5 +8,11 @@ struct Vertex {
   float r, g, b, a;
 };
 
+struct UniformBuffer {
+  float time;
+};
+
+static UniformBuffer timeUniform{};
+
 inline void temp_aset(Vertex *p, size_t i, Vertex t) { p[i] = t; }
 } // namespace extra

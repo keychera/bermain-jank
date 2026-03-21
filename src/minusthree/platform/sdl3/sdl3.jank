@@ -83,7 +83,7 @@
                              (assign .-num_samplers #cpp 0)
                              (assign .-num_storage_buffers #cpp 0)
                              (assign .-num_storage_textures #cpp 0)
-                             (assign .-num_uniform_buffers #cpp 0))
+                             (assign .-num_uniform_buffers #cpp 1))
                frag-shader (cpp/SDL_CreateGPUShader gpu-device (cpp/& frag-info))
                _ (cpp/SDL_free vert-code)
                _ (cpp/SDL_free frag-code)
@@ -168,6 +168,10 @@
                                (assign .-buffer vertex-buffer)
                                (assign .-offset #cpp 0))]
                        (cpp/SDL_BindGPUVertexBuffers render-pass #cpp 0 (cpp/cast (cpp/type "SDL_GPUBufferBinding const*") (.data buffer-bindings)) #cpp 1)
+
+                       (doto cpp/extra.timeUniform (assign .-time (cpp/float (/ (cpp/SDL_GetTicksNS) (cpp/float 1e9)))))
+                       (cpp/SDL_PushGPUFragmentUniformData command-buffer #cpp 0 (cpp/& cpp/extra.timeUniform) #_manual #cpp 4)
+
                        (cpp/SDL_DrawGPUPrimitives render-pass #cpp 3 #cpp 1 #cpp 0 #cpp 0))
 
                      (cpp/SDL_EndGPURenderPass render-pass)))
