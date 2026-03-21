@@ -50,17 +50,19 @@
 (defn ->flags [flag coll]
   (into [] (mapcat (fn [entry] [flag entry])) coll))
 
-(defn jank-command [jank-deps-edn command {:keys [main-module extra]}]
-  (let [{:keys [module-path include-dirs library-dirs linked-libraries]} jank-deps-edn]
-    (into []
-          (remove nil?)
-          (concat
-           ["jank" "--module-path" module-path]
-           (->flags "-I" include-dirs)
-           (->flags "-L" library-dirs)
-           (->flags "-l" linked-libraries)
-           [command main-module]
-           extra))))
+(defn jank-command
+  ([jank-deps-edn] (jank-command jank-deps-edn nil {}))
+  ([jank-deps-edn command {:keys [main-module extra]}]
+   (let [{:keys [module-path include-dirs library-dirs linked-libraries]} jank-deps-edn]
+     (into []
+           (remove nil?)
+           (concat
+            ["jank" "--module-path" module-path]
+            (->flags "-I" include-dirs)
+            (->flags "-L" library-dirs)
+            (->flags "-l" linked-libraries)
+            [command main-module]
+            extra)))))
 
 (def shader-home "shaders")
 
@@ -83,7 +85,7 @@
         (println "compiling to" spv-out)
         (b/process {:command-args ["glslc" -fshader shader-file "-o" spv-out]})))))
 
-(defn clean-shaders 
+(defn clean-shaders
   [{}]
   (doseq [spv (eduction
                (filter (every-pred fs/regular-file? #(str/ends-with? % ".spv")))
@@ -100,8 +102,16 @@
     (catch Throwable err
       (log "error when running clj-kondo! cause:" (:cause (Throwable->map err))))))
 
+(defn tell-clangd ;; about our project
+  [{}]
+  (spit "compile_flags.txt"
+        (->> (jank-command (->jank-deps-edn @deps-basis))
+             (drop 3)
+             (str/join "\n"))))
+
 (defn prep [args]
   (prep-kondo args)
+  (tell-clangd args)
   (build-sdl3 args)
   (compile-shaders args))
 

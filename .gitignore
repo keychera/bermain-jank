@@ -16,3 +16,5 @@ target
 *.spv
 
 .selfbuild
+# for clangd
+compile_flags.txt 
