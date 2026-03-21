@@ -1,8 +1,10 @@
 (ns build.lets
   (:require
+   [babashka.fs :as fs]
+   [babashka.http-client :as http]
+   [clojure.java.io :as io]
    [clojure.string :as str]
-   [clojure.tools.build.api :as b]
-   [babashka.fs :as fs])
+   [clojure.tools.build.api :as b])
   (:import
    [java.io File]))
 
@@ -55,26 +57,29 @@
              (drop 3)
              (str/join "\n"))))
 
-;; some manual selfbuild
-(def selfbuild-home "../.selfbuild")
+(defn download [url to-file]
+  (with-open [input-stream (:body (http/get url {:as :stream}))]
+    (io/copy input-stream (io/file to-file))))
 
-;; https://mccue.dev/pages/12-26-24-sdl3-java
-(defn build-sdl3
+(def dot-libs "../.libs")
+(def sdl-release "/SDL3-3.4.2/x86_64-w64-mingw32")
+
+(defn download-sdl3
   [{}]
-  (let [sdl-home  (str selfbuild-home "/sdl3")
-        sdl-build (str sdl-home "/build")]
-    (b/process {:command-args ["git" "clone" "--depth" "1" "https://github.com/libsdl-org/SDL" sdl-home] :out :inherit :err :inherit})
-    (fs/create-dirs sdl-build)
-    (b/process {:dir sdl-build :command-args ["cmake" "-DCMAKE_BUILD_TYPE=Release" ".."] :out :inherit :err :inherit})
-    (b/process {:dir sdl-build :command-args ["cmake" "--build" "." "--config" "Release" "--parallel"] :out :inherit :err :inherit})
+  (let [sdl-devel (str dot-libs "/sdl3.tar.gz")
+        sdl-dir   (str dot-libs sdl-release)]
+    (io/make-parents sdl-devel)
+    (download "https://github.com/libsdl-org/SDL/releases/download/release-3.4.2/SDL3-devel-3.4.2-mingw.tar.gz" sdl-devel)
+    (b/process {:command-args ["tar" "-xzvf" sdl-devel "-C" dot-libs]})
     ;; workaround, reported here https://github.com/ikappaki/jank-win/issues/37
-    (fs/move (str sdl-build "/Release/SDL3.dll") (str sdl-build "/Release/libSDL3.dll"))
-    (log "build-sdl3 done")))
+    (fs/copy (str sdl-dir "/bin/SDL3.dll") (str sdl-dir "/bin/libSDL3.dll") {:replace-existing true})
+    (log "download-sdl3 done")
+    (log (str "  include dir: " sdl-dir "/include"))
+    (log (str "  bin dir: " sdl-dir "/bin"))))
 
 (defn workaround [& _]
-  (let [sdl-home  (str selfbuild-home "/sdl3")
-        sdl-build (str sdl-home "/build")]
-    (fs/copy (str sdl-build "/Release/libSDL3.dll") (str @target-dir "/SDL3.dll") {:replace-existing true})
+  (let [sdl-dir  (str dot-libs sdl-release)]
+    (fs/copy (str sdl-dir "/bin/SDL3.dll") (str @target-dir "/SDL3.dll") {:replace-existing true})
     (log "workaround done")))
 
 (def shader-home "shaders")
@@ -109,7 +114,7 @@
 (defn prep [args]
   (prep-kondo args)
   (tell-clangd args)
-  (build-sdl3 args)
+  (download-sdl3 args)
   (compile-shaders args))
 
 (defn clean [& _]

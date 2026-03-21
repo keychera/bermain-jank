@@ -16,7 +16,7 @@ preparation (need to run only once)
 bb prep
 # this does
 bb lets prep-kondo # this shells out to clj-kondo (optional, this fetch the configs from dependencis via --copy-configs)
-bb lets build-sdl3 # this git clone SDL3 repo to an adjacent folder, then shells out to whatever SDL3 needs to build
+bb lets download-sdl3 # download SDL3 release to an adjacent .libs folder, then unzip
 bb lets compile-shaders # this shells out to Vulkan SDK's `glslc`, and compile everything in `shaders` folder
 ```
 
