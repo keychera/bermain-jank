@@ -21,9 +21,10 @@
 
 (cpp/raw "static extra::Vertex vertices[]
 {
-    {0.0f, 0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f},   // top vertex
-    {-0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f}, // bottom left vertex
-    {0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f}   // bottom right vertex
+    // x,    y,    z,    r,    g,    b,    a,    u,    v
+    { 0.0f,  0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.5f, 0.0f}, // top vertex
+    {-0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f}, // bottom left vertex
+    { 0.5f, -0.5f, 0.0f, 1.0f, 0.1f, 1.0f, 1.0f, 1.0f, 1.0f}  // bottom right vertex
 };")
 
 (comment
@@ -112,7 +113,7 @@
            (cpp/SDL_EndGPUCopyPass copy-pass)
            (cpp/SDL_SubmitGPUCommandBuffer copy-cmd))
 
-         (let [Vertex-size     (cpp/int (* 7 #_floats 4 #_float-size))
+         (let [Vertex-size     (cpp/int (* 9 #_floats 4 #_float-size))
                manual-size     (cpp/int (* 3 Vertex-size))
                buffer-info     (doto (cpp/SDL_GPUBufferCreateInfo)
                                  (assign .-size manual-size)
@@ -125,8 +126,7 @@
                transfer-buffer (cpp/SDL_CreateGPUTransferBuffer gpu-device (cpp/& transfer-info))
                transfer-data   (->> (cpp/SDL_MapGPUTransferBuffer gpu-device transfer-buffer false)
                                     (cpp/cast cpp/extra.Vertex*))]
-           (dotimes [i manual-size]
-             (cpp/extra.temp_aset transfer-data (cpp/size_t i) (cpp/aget cpp/vertices (cpp/int i))))
+           (cpp/SDL_memcpy transfer-data cpp/vertices manual-size)
            (cpp/SDL_UnmapGPUTransferBuffer gpu-device transfer-buffer)
 
            (let [code-size         (cpp/size_t)
@@ -144,7 +144,7 @@
                  frag-info         (doto (cpp/SDL_GPUShaderCreateInfo code-size (cpp/cast cpp/Uint8* frag-code) #cpp "main")
                                      (assign .-format cpp/SDL_GPU_SHADERFORMAT_SPIRV)
                                      (assign .-stage cpp/SDL_GPU_SHADERSTAGE_FRAGMENT)
-                                     (assign .-num_samplers #cpp 0)
+                                     (assign .-num_samplers #cpp 1)
                                      (assign .-num_storage_buffers #cpp 0)
                                      (assign .-num_storage_textures #cpp 0)
                                      (assign .-num_uniform_buffers #cpp 1))
@@ -158,7 +158,7 @@
 
                  ;; cpp/type will disappear soon https://github.com/jank-lang/jank/pull/717
                  vert-buffer-desc  ((cpp/type "std::array<SDL_GPUVertexBufferDescription, 1>"))
-                 vertex-attributes ((cpp/type "std::array<SDL_GPUVertexAttribute, 2>"))
+                 vertex-attributes ((cpp/type "std::array<SDL_GPUVertexAttribute, 3>"))
                  color-target-desc ((cpp/type "std::array<SDL_GPUColorTargetDescription, 1>"))
                  _                 (doto (cpp/aget vert-buffer-desc #cpp 0)
                                      (assign .-slot #cpp 0)
@@ -175,13 +175,18 @@
                                      (assign .-location #cpp 1)
                                      (assign .-format cpp/SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4)
                                      (assign .-offset #cpp 12)) ;; 4th float from current buffer position
+                 _                 (doto (cpp/aget vertex-attributes #cpp 2)
+                                     (assign .-buffer_slot #cpp 0)
+                                     (assign .-location #cpp 2)
+                                     (assign .-format cpp/SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2)
+                                     (assign .-offset #cpp 28))
                  _                 (doto (cpp/aget color-target-desc #cpp 0)
                                      (assign .-format (cpp/SDL_GetGPUSwapchainTextureFormat gpu-device sdl-window)))
                  _                 (doto (.-vertex_input_state pipeline-info)
                                      (assign .-num_vertex_buffers #cpp 1)
                                      (assign .-vertex_buffer_descriptions
                                              (cpp/cast (cpp/type "SDL_GPUVertexBufferDescription const*") (.data vert-buffer-desc)))
-                                     (assign .-num_vertex_attributes #cpp 2)
+                                     (assign .-num_vertex_attributes #cpp 3)
                                      (assign .-vertex_attributes
                                              (cpp/cast (cpp/type "SDL_GPUVertexAttribute const*") (.data vertex-attributes))))
                  _                 (doto (.-target_info pipeline-info)
