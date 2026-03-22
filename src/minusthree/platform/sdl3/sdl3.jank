@@ -41,13 +41,6 @@
   ([{:keys [stop-atom]}]
    (must-be-true (cpp/SDL_Init (bit-or cpp/SDL_INIT_VIDEO cpp/SDL_INIT_GAMEPAD)))
 
-   (let [width (cpp/int)
-         height (cpp/int)
-         channel-count (cpp/int)
-         img (cpp/stbi_load "resources/horse/running/horse-0.png" (cpp/& width) (cpp/& height) (cpp/& channel-count) #cpp 4)]
-     (println width height channel-count)
-     (cpp/stbi_image_free img))
-
    ;; "resources/horse/running/horse-1.png" does not exist, want to see error
    #_(let [img (must-return (cpp/IMG_Load "resources/horse/running/horse-1.png"))]
        (cpp/SDL_DestroySurface img))
@@ -68,144 +61,202 @@
 
        (cpp/SDL_SetGPUSwapchainParameters gpu-device sdl-window cpp/SDL_GPU_SWAPCHAINCOMPOSITION_SDR cpp/SDL_GPU_PRESENTMODE_VSYNC)
 
-       (let [Vertex-size     (cpp/int (* 7 #_floats 4 #_float-size))
-             manual-size     (cpp/int (* 3 Vertex-size))
-             buffer-info     (doto (cpp/SDL_GPUBufferCreateInfo)
-                               (assign .-size manual-size)
-                               (assign .-usage cpp/SDL_GPU_BUFFERUSAGE_VERTEX))
-             vertex-buffer   (cpp/SDL_CreateGPUBuffer gpu-device (cpp/& buffer-info))
+       ;; question: transfer buffer for each upload or we can combine?
+       (let [width               (cpp/int)
+             height              (cpp/int)
+             channel-count       (cpp/int)
+             image-data          (cpp/stbi_load "resources/horse/running/horse-0.png" (cpp/& width) (cpp/& height) (cpp/& channel-count) #cpp 4)
+             image-size          (cpp/int (* width height 4))
 
-             transfer-info   (doto (cpp/SDL_GPUTransferBufferCreateInfo)
-                               (assign .-size manual-size)
-                               (assign .-usage cpp/SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD))
-             transfer-buffer (cpp/SDL_CreateGPUTransferBuffer gpu-device (cpp/& transfer-info))
-             transfer-data   (->> (cpp/SDL_MapGPUTransferBuffer gpu-device transfer-buffer false)
-                                  (cpp/cast cpp/extra.Vertex*))]
-         (dotimes [i manual-size]
-           (cpp/extra.temp_aset transfer-data (cpp/size_t i) (cpp/aget cpp/vertices (cpp/int i))))
-         (cpp/SDL_UnmapGPUTransferBuffer gpu-device transfer-buffer)
+             texture-info
+             (doto (cpp/SDL_GPUTextureCreateInfo)
+               (assign .-type      cpp/SDL_GPU_TEXTURETYPE_2D)
+               (assign .-format    cpp/SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM)
+               (assign .-width     width)
+               (assign .-height    height)
+               (assign .-layer_count_or_depth #cpp 1)
+               (assign .-num_levels #cpp 1)
+               (assign .-usage     cpp/SDL_GPU_TEXTUREUSAGE_SAMPLER))
+             texture             (cpp/SDL_CreateGPUTexture gpu-device (cpp/& texture-info))
 
-         (let [code-size   (cpp/size_t)
-               vert-code   (must-return (cpp/SDL_LoadFile "shaders/vertex.spv" (cpp/& code-size)))
-               vert-info   (doto (cpp/SDL_GPUShaderCreateInfo code-size (cpp/cast cpp/Uint8* vert-code) #cpp "main")
-                             (assign .-format cpp/SDL_GPU_SHADERFORMAT_SPIRV)
-                             (assign .-stage cpp/SDL_GPU_SHADERSTAGE_VERTEX)
-                             (assign .-num_samplers #cpp 0)
-                             (assign .-num_storage_buffers #cpp 0)
-                             (assign .-num_storage_textures #cpp 0)
-                             (assign .-num_uniform_buffers #cpp 0))
-               vert-shader (cpp/SDL_CreateGPUShader gpu-device (cpp/& vert-info))
-               ; can we reuse code-size?
-               frag-code   (must-return (cpp/SDL_LoadFile "shaders/fragment.spv" (cpp/& code-size)))
-               frag-info   (doto (cpp/SDL_GPUShaderCreateInfo code-size (cpp/cast cpp/Uint8* frag-code) #cpp "main")
-                             (assign .-format cpp/SDL_GPU_SHADERFORMAT_SPIRV)
-                             (assign .-stage cpp/SDL_GPU_SHADERSTAGE_FRAGMENT)
-                             (assign .-num_samplers #cpp 0)
-                             (assign .-num_storage_buffers #cpp 0)
-                             (assign .-num_storage_textures #cpp 0)
-                             (assign .-num_uniform_buffers #cpp 1))
-               frag-shader (cpp/SDL_CreateGPUShader gpu-device (cpp/& frag-info))
-               _ (cpp/SDL_free vert-code)
-               _ (cpp/SDL_free frag-code)
-               pipeline-info
-               (doto (cpp/SDL_GPUGraphicsPipelineCreateInfo)
-                 (assign .-vertex_shader vert-shader)
-                 (assign .-fragment_shader frag-shader)
-                 (assign .-primitive_type cpp/SDL_GPU_PRIMITIVETYPE_TRIANGLELIST))
+             sampler-info        (doto (cpp/SDL_GPUSamplerCreateInfo)
+                                   (assign .-min_filter cpp/SDL_GPU_FILTER_NEAREST)
+                                   (assign .-mag_filter cpp/SDL_GPU_FILTER_NEAREST)
+                                   (assign .-mipmap_mode cpp/SDL_GPU_SAMPLERMIPMAPMODE_NEAREST)
+                                   (assign .-address_mode_u cpp/SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE)
+                                   (assign .-address_mode_v cpp/SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE))
+             sampler             (cpp/SDL_CreateGPUSampler gpu-device (cpp/& sampler-info))
 
-               ;; cpp/type will disappear soon https://github.com/jank-lang/jank/pull/717
-               vert-buffer-desc  ((cpp/type "std::array<SDL_GPUVertexBufferDescription, 1>"))
-               vertex-attributes ((cpp/type "std::array<SDL_GPUVertexAttribute, 2>"))
-               color-target-desc ((cpp/type "std::array<SDL_GPUColorTargetDescription, 1>"))
-               _ (doto (cpp/aget vert-buffer-desc #cpp 0)
-                   (assign .-slot #cpp 0)
-                   (assign .-input_rate cpp/SDL_GPU_VERTEXINPUTRATE_VERTEX)
-                   (assign .-instance_step_rate #cpp 0)
-                   (assign .-pitch Vertex-size))
-               _ (doto (cpp/aget vertex-attributes #cpp 0)
-                   (assign .-buffer_slot #cpp 0)
-                   (assign .-location #cpp 0)
-                   (assign .-format cpp/SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3)
-                   (assign .-offset #cpp 0))
-               _  (doto (cpp/aget vertex-attributes #cpp 1)
-                    (assign .-buffer_slot #cpp 0)
-                    (assign .-location #cpp 1)
-                    (assign .-format cpp/SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4)
-                    (assign .-offset #cpp 12)) ;; 4th float from current buffer position
-               _ (doto (cpp/aget color-target-desc #cpp 0)
-                   (assign .-format (cpp/SDL_GetGPUSwapchainTextureFormat gpu-device sdl-window)))
-               _ (doto (.-vertex_input_state pipeline-info)
-                   (assign .-num_vertex_buffers #cpp 1)
-                   (assign .-vertex_buffer_descriptions
-                           (cpp/cast (cpp/type "SDL_GPUVertexBufferDescription const*") (.data vert-buffer-desc)))
-                   (assign .-num_vertex_attributes #cpp 2)
-                   (assign .-vertex_attributes
-                           (cpp/cast (cpp/type "SDL_GPUVertexAttribute const*") (.data vertex-attributes))))
-               _ (doto (.-target_info pipeline-info)
-                   (assign .-num_color_targets #cpp 1)
-                   (assign .-color_target_descriptions
-                           (cpp/cast (cpp/type "SDL_GPUColorTargetDescription const*") (.data color-target-desc))))
-               graphics-pipeline
-               (cpp/SDL_CreateGPUGraphicsPipeline gpu-device (cpp/& pipeline-info))]
-           (cpp/SDL_ReleaseGPUShader gpu-device vert-shader)
-           (cpp/SDL_ReleaseGPUShader gpu-device frag-shader)
+             transfer-info       (doto (cpp/SDL_GPUTransferBufferCreateInfo)
+                                   (assign .-size image-size)
+                                   (assign .-usage cpp/SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD))
+             tex-transfer-buffer (cpp/SDL_CreateGPUTransferBuffer gpu-device (cpp/& transfer-info))
+             transfer-data       (->> (cpp/SDL_MapGPUTransferBuffer gpu-device tex-transfer-buffer false)
+                                      (cpp/cast cpp/int*))]
 
-           (let [command-buffer (cpp/SDL_AcquireGPUCommandBuffer gpu-device)
-                 copy-pass      (cpp/SDL_BeginGPUCopyPass command-buffer)
-                 buffer-loc     (doto (cpp/SDL_GPUTransferBufferLocation)
-                                  (assign .-transfer_buffer transfer-buffer)
-                                  (assign .-offset #cpp 0))
-                 region         (doto (cpp/SDL_GPUBufferRegion)
-                                  (assign .-buffer vertex-buffer)
-                                  (assign .-size manual-size)
-                                  (assign .-offset #cpp 0))]
-             (cpp/SDL_UploadToGPUBuffer copy-pass (cpp/& buffer-loc) (cpp/& region) true)
-             (cpp/SDL_EndGPUCopyPass copy-pass)
-             (cpp/SDL_SubmitGPUCommandBuffer command-buffer))
+         (cpp/SDL_memcpy transfer-data image-data image-size)
+         (cpp/SDL_UnmapGPUTransferBuffer gpu-device tex-transfer-buffer)
+         (cpp/stbi_image_free image-data)
 
-           (loop [game (time/init)]
-             (let [total (cpp/SDL_GetTicks)
-                   delta (- total (time/get-total game))
-                   game  (-> (time/update-time game total delta)
-                             (sdl3-events/poll-events))]
-               (cpp/SDL_SetWindowTitle sdl-window (str "frametime: " delta " ms"))
+         (let [copy-location (doto (cpp/SDL_GPUTextureTransferInfo)
+                               (assign .-transfer_buffer tex-transfer-buffer)
+                               (assign .-offset #cpp 0))
+               dest-region   (doto (cpp/SDL_GPUTextureRegion)
+                               (assign .-texture texture)
+                               (assign .-w width)
+                               (assign .-h height)
+                               (assign .-d #cpp 1))
+               copy-cmd      (cpp/SDL_AcquireGPUCommandBuffer gpu-device)
+               copy-pass     (cpp/SDL_BeginGPUCopyPass copy-cmd)]
+           (cpp/SDL_UploadToGPUTexture copy-pass (cpp/& copy-location) (cpp/& dest-region) false)
+           (cpp/SDL_EndGPUCopyPass copy-pass)
+           (cpp/SDL_SubmitGPUCommandBuffer copy-cmd))
 
-               (let [command-buffer (cpp/SDL_AcquireGPUCommandBuffer gpu-device)
-                     swapchain-tex  (cpp/SDL_GPUTexture*)]
-                 (cpp/SDL_WaitAndAcquireGPUSwapchainTexture command-buffer sdl-window (cpp/& swapchain-tex) cpp/nullptr cpp/nullptr)
+         (let [Vertex-size     (cpp/int (* 7 #_floats 4 #_float-size))
+               manual-size     (cpp/int (* 3 Vertex-size))
+               buffer-info     (doto (cpp/SDL_GPUBufferCreateInfo)
+                                 (assign .-size manual-size)
+                                 (assign .-usage cpp/SDL_GPU_BUFFERUSAGE_VERTEX))
+               vertex-buffer   (cpp/SDL_CreateGPUBuffer gpu-device (cpp/& buffer-info))
 
-                 (when-not (cpp/== cpp/nullptr swapchain-tex)
-                   (let [target-info
-                         (doto (cpp/SDL_GPUColorTargetInfo)
-                           (assign .-clear_color (cpp/SDL_FColor (cpp/float 1.0) (cpp/float 1.0) (cpp/float 1.0) (cpp/float 1.0)))
-                           (assign .-load_op     cpp/SDL_GPU_LOADOP_CLEAR)
-                           (assign .-store_op    cpp/SDL_GPU_STOREOP_STORE)
-                           (assign .-texture     swapchain-tex))
-                         render-pass (cpp/SDL_BeginGPURenderPass command-buffer (cpp/& target-info) #cpp 1 cpp/nullptr)]
-                     (cpp/SDL_BindGPUGraphicsPipeline render-pass graphics-pipeline)
+               transfer-info   (doto (cpp/SDL_GPUTransferBufferCreateInfo)
+                                 (assign .-size manual-size)
+                                 (assign .-usage cpp/SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD))
+               transfer-buffer (cpp/SDL_CreateGPUTransferBuffer gpu-device (cpp/& transfer-info))
+               transfer-data   (->> (cpp/SDL_MapGPUTransferBuffer gpu-device transfer-buffer false)
+                                    (cpp/cast cpp/extra.Vertex*))]
+           (dotimes [i manual-size]
+             (cpp/extra.temp_aset transfer-data (cpp/size_t i) (cpp/aget cpp/vertices (cpp/int i))))
+           (cpp/SDL_UnmapGPUTransferBuffer gpu-device transfer-buffer)
 
-                     (let [buffer-bindings ((cpp/type "std::array<SDL_GPUBufferBinding, 1>"))]
-                       (doto (cpp/aget buffer-bindings #cpp 0)
-                         (assign .-buffer vertex-buffer)
-                         (assign .-offset #cpp 0))
-                       (cpp/SDL_BindGPUVertexBuffers render-pass #cpp 0 (cpp/cast (cpp/type "SDL_GPUBufferBinding const*") (.data buffer-bindings)) #cpp 1)
+           (let [code-size         (cpp/size_t)
+                 vert-code         (must-return (cpp/SDL_LoadFile "shaders/vertex.spv" (cpp/& code-size)))
+                 vert-info         (doto (cpp/SDL_GPUShaderCreateInfo code-size (cpp/cast cpp/Uint8* vert-code) #cpp "main")
+                                     (assign .-format cpp/SDL_GPU_SHADERFORMAT_SPIRV)
+                                     (assign .-stage cpp/SDL_GPU_SHADERSTAGE_VERTEX)
+                                     (assign .-num_samplers #cpp 0)
+                                     (assign .-num_storage_buffers #cpp 0)
+                                     (assign .-num_storage_textures #cpp 0)
+                                     (assign .-num_uniform_buffers #cpp 0))
+                 vert-shader       (cpp/SDL_CreateGPUShader gpu-device (cpp/& vert-info))
+                 ; can we reuse code-size?
+                 frag-code         (must-return (cpp/SDL_LoadFile "shaders/fragment.spv" (cpp/& code-size)))
+                 frag-info         (doto (cpp/SDL_GPUShaderCreateInfo code-size (cpp/cast cpp/Uint8* frag-code) #cpp "main")
+                                     (assign .-format cpp/SDL_GPU_SHADERFORMAT_SPIRV)
+                                     (assign .-stage cpp/SDL_GPU_SHADERSTAGE_FRAGMENT)
+                                     (assign .-num_samplers #cpp 0)
+                                     (assign .-num_storage_buffers #cpp 0)
+                                     (assign .-num_storage_textures #cpp 0)
+                                     (assign .-num_uniform_buffers #cpp 1))
+                 frag-shader       (cpp/SDL_CreateGPUShader gpu-device (cpp/& frag-info))
+                 _                 (cpp/SDL_free vert-code)
+                 _                 (cpp/SDL_free frag-code)
+                 pipeline-info     (doto (cpp/SDL_GPUGraphicsPipelineCreateInfo)
+                                     (assign .-vertex_shader vert-shader)
+                                     (assign .-fragment_shader frag-shader)
+                                     (assign .-primitive_type cpp/SDL_GPU_PRIMITIVETYPE_TRIANGLELIST))
 
-                       (doto cpp/extra.timeUniform (assign .-time (cpp/float (/ (cpp/SDL_GetTicksNS) (cpp/float 1e9)))))
-                       (cpp/SDL_PushGPUFragmentUniformData command-buffer #cpp 0 (cpp/& cpp/extra.timeUniform) #_manual #cpp 4)
+                 ;; cpp/type will disappear soon https://github.com/jank-lang/jank/pull/717
+                 vert-buffer-desc  ((cpp/type "std::array<SDL_GPUVertexBufferDescription, 1>"))
+                 vertex-attributes ((cpp/type "std::array<SDL_GPUVertexAttribute, 2>"))
+                 color-target-desc ((cpp/type "std::array<SDL_GPUColorTargetDescription, 1>"))
+                 _                 (doto (cpp/aget vert-buffer-desc #cpp 0)
+                                     (assign .-slot #cpp 0)
+                                     (assign .-input_rate cpp/SDL_GPU_VERTEXINPUTRATE_VERTEX)
+                                     (assign .-instance_step_rate #cpp 0)
+                                     (assign .-pitch Vertex-size))
+                 _                 (doto (cpp/aget vertex-attributes #cpp 0)
+                                     (assign .-buffer_slot #cpp 0)
+                                     (assign .-location #cpp 0)
+                                     (assign .-format cpp/SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3)
+                                     (assign .-offset #cpp 0))
+                 _                 (doto (cpp/aget vertex-attributes #cpp 1)
+                                     (assign .-buffer_slot #cpp 0)
+                                     (assign .-location #cpp 1)
+                                     (assign .-format cpp/SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4)
+                                     (assign .-offset #cpp 12)) ;; 4th float from current buffer position
+                 _                 (doto (cpp/aget color-target-desc #cpp 0)
+                                     (assign .-format (cpp/SDL_GetGPUSwapchainTextureFormat gpu-device sdl-window)))
+                 _                 (doto (.-vertex_input_state pipeline-info)
+                                     (assign .-num_vertex_buffers #cpp 1)
+                                     (assign .-vertex_buffer_descriptions
+                                             (cpp/cast (cpp/type "SDL_GPUVertexBufferDescription const*") (.data vert-buffer-desc)))
+                                     (assign .-num_vertex_attributes #cpp 2)
+                                     (assign .-vertex_attributes
+                                             (cpp/cast (cpp/type "SDL_GPUVertexAttribute const*") (.data vertex-attributes))))
+                 _                 (doto (.-target_info pipeline-info)
+                                     (assign .-num_color_targets #cpp 1)
+                                     (assign .-color_target_descriptions
+                                             (cpp/cast (cpp/type "SDL_GPUColorTargetDescription const*") (.data color-target-desc))))
+                 graphics-pipeline (cpp/SDL_CreateGPUGraphicsPipeline gpu-device (cpp/& pipeline-info))]
+             (cpp/SDL_ReleaseGPUShader gpu-device vert-shader)
+             (cpp/SDL_ReleaseGPUShader gpu-device frag-shader)
 
-                       (cpp/SDL_DrawGPUPrimitives render-pass #cpp 3 #cpp 1 #cpp 0 #cpp 0))
+             (let [command-buffer (cpp/SDL_AcquireGPUCommandBuffer gpu-device)
+                   copy-pass      (cpp/SDL_BeginGPUCopyPass command-buffer)
+                   buffer-loc     (doto (cpp/SDL_GPUTransferBufferLocation)
+                                    (assign .-transfer_buffer transfer-buffer)
+                                    (assign .-offset #cpp 0))
+                   region         (doto (cpp/SDL_GPUBufferRegion)
+                                    (assign .-buffer vertex-buffer)
+                                    (assign .-size manual-size)
+                                    (assign .-offset #cpp 0))]
+               (cpp/SDL_UploadToGPUBuffer copy-pass (cpp/& buffer-loc) (cpp/& region) true)
+               (cpp/SDL_EndGPUCopyPass copy-pass)
+               (cpp/SDL_SubmitGPUCommandBuffer command-buffer))
 
-                     (cpp/SDL_EndGPURenderPass render-pass)))
-                 (cpp/SDL_SubmitGPUCommandBuffer command-buffer))
+             (loop [game (time/init)]
+               (let [total (cpp/SDL_GetTicks)
+                     delta (- total (time/get-total game))
+                     game  (-> (time/update-time game total delta)
+                               (sdl3-events/poll-events))]
+                 (cpp/SDL_SetWindowTitle sdl-window (str "frametime: " delta " ms"))
 
-               (when-not (or (::sdl3-events/end? game)
-                             (and stop-atom @stop-atom))
-                 (recur game))))
+                 (let [command-buffer (cpp/SDL_AcquireGPUCommandBuffer gpu-device)
+                       swapchain-tex  (cpp/SDL_GPUTexture*)]
+                   (cpp/SDL_WaitAndAcquireGPUSwapchainTexture command-buffer sdl-window (cpp/& swapchain-tex) cpp/nullptr cpp/nullptr)
 
-           (cpp/SDL_ReleaseGPUGraphicsPipeline gpu-device graphics-pipeline))
+                   (when-not (cpp/== cpp/nullptr swapchain-tex)
+                     (let [target-info
+                           (doto (cpp/SDL_GPUColorTargetInfo)
+                             (assign .-clear_color (cpp/SDL_FColor (cpp/float 1.0) (cpp/float 1.0) (cpp/float 1.0) (cpp/float 1.0)))
+                             (assign .-load_op     cpp/SDL_GPU_LOADOP_CLEAR)
+                             (assign .-store_op    cpp/SDL_GPU_STOREOP_STORE)
+                             (assign .-texture     swapchain-tex))
+                           render-pass (cpp/SDL_BeginGPURenderPass command-buffer (cpp/& target-info) #cpp 1 cpp/nullptr)]
+                       (cpp/SDL_BindGPUGraphicsPipeline render-pass graphics-pipeline)
 
-         (cpp/SDL_ReleaseGPUBuffer gpu-device vertex-buffer)
-         (cpp/SDL_ReleaseGPUTransferBuffer gpu-device transfer-buffer))
+                       (let [buffer-bindings ((cpp/type "std::array<SDL_GPUBufferBinding, 1>"))
+                             sampler-binding (doto (cpp/SDL_GPUTextureSamplerBinding)
+                                               (assign .-texture texture) ;; The texture from previous step
+                                               (assign .-sampler sampler))]
+                         (doto (cpp/aget buffer-bindings #cpp 0)
+                           (assign .-buffer vertex-buffer)
+                           (assign .-offset #cpp 0))
+
+                         (cpp/SDL_BindGPUVertexBuffers render-pass #cpp 0 (cpp/cast (cpp/type "SDL_GPUBufferBinding const*") (.data buffer-bindings)) #cpp 1)
+                         (cpp/SDL_BindGPUFragmentSamplers render-pass 0 (cpp/& sampler-binding) #cpp 1)
+
+                         (doto cpp/extra.timeUniform (assign .-time (cpp/float (/ (cpp/SDL_GetTicksNS) (cpp/float 1e9)))))
+                         (cpp/SDL_PushGPUFragmentUniformData command-buffer #cpp 0 (cpp/& cpp/extra.timeUniform) #_manual #cpp 4)
+
+                         (cpp/SDL_DrawGPUPrimitives render-pass #cpp 3 #cpp 1 #cpp 0 #cpp 0))
+
+                       (cpp/SDL_EndGPURenderPass render-pass)))
+                   (cpp/SDL_SubmitGPUCommandBuffer command-buffer))
+
+                 (when-not (or (::sdl3-events/end? game)
+                               (and stop-atom @stop-atom))
+                   (recur game))))
+
+             (cpp/SDL_ReleaseGPUGraphicsPipeline gpu-device graphics-pipeline))
+
+           (cpp/SDL_ReleaseGPUBuffer gpu-device vertex-buffer)
+           (cpp/SDL_ReleaseGPUTransferBuffer gpu-device transfer-buffer))
+
+         (cpp/SDL_ReleaseGPUSampler gpu-device sampler)
+         (cpp/SDL_ReleaseGPUTexture gpu-device texture)
+         (cpp/SDL_ReleaseGPUTransferBuffer gpu-device tex-transfer-buffer))
 
        (cpp/SDL_WaitForGPUIdle gpu-device)
 
