@@ -15,9 +15,10 @@
 (cpp/raw "#define STBI_FREE SDL_free")
 (include "stb_image.h")
 
-;; learning from https://github.com/ocornut/imgui/blob/master/examples/example_sdl3_sdlgpu3/main.cpp
+;; DONE https://hamdy-elzanqali.medium.com/let-there-be-triangles-sdl-gpu-edition-bd82cf2ef615 
+;; TODO (just the thing we need) https://github.com/TheSpydog/SDL_gpu_examples
+;; TODO https://github.com/ocornut/imgui/blob/master/examples/example_sdl3_sdlgpu3/main.cpp
 ;; but without imgui first
-;; https://hamdy-elzanqali.medium.com/let-there-be-triangles-sdl-gpu-edition-bd82cf2ef615
 
 (cpp/raw "static extra::Vertex vertices[]
 {

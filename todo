@@ -1,0 +1,25 @@
+jank:
+    ☐ gradient sky
+    ☐ texture atlas
+    ☐ instancing
+    ☐ parallax
+    ☐ camera
+    ☐ animation
+    ☐ jump
+    ☐ carrot
+    ☐ text
+    ☐ score
+    ☐ menu
+    ☐ making sense of runtime resources
+    ☐ odoyle
+    ☐ imgui
+
+
+    ☐ 燃え種
+
+
+problem:
+    ☐ stb_image.h: `jank run-main` works but `jank compile` doesn't
+    ☐ revisit SDL_Image.h: `jank run-main` doesn't works but `jank compile` works
+    ☐ revisit cpp/raw linker error, maybe I am using the old way of doing this
+    ☐ sizeof alternative/workaround?
