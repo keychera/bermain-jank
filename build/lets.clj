@@ -34,7 +34,7 @@
      (into []
            (remove nil?)
            (concat
-            ["jank" "--module-path" module-path]
+            [(or (str/trim-newline (slurp "wherejank")) "jank") "--module-path" module-path]
             (->flags "-I" include-dirs)
             (->flags "-L" library-dirs)
             (->flags "-l" linked-libraries)
@@ -71,8 +71,6 @@
     (io/make-parents sdl-devel)
     (download "https://github.com/libsdl-org/SDL/releases/download/release-3.4.2/SDL3-devel-3.4.2-mingw.tar.gz" sdl-devel)
     (b/process {:command-args ["tar" "-xzvf" sdl-devel "-C" dot-libs]})
-    ;; workaround, reported here https://github.com/ikappaki/jank-win/issues/37
-    (fs/copy (str sdl-dir "/bin/SDL3.dll") (str sdl-dir "/bin/libSDL3.dll") {:replace-existing true})
     (log "download-sdl3 done")
     (log (str "  include dir: " sdl-dir "/include"))
     (log (str "  bin dir: " sdl-dir "/bin"))))
@@ -86,13 +84,11 @@
     (io/make-parents sdl-devel)
     (download "https://github.com/libsdl-org/SDL_image/releases/download/release-3.4.0/SDL3_image-devel-3.4.0-mingw.tar.gz" sdl-devel)
     (b/process {:command-args ["tar" "-xzvf" sdl-devel "-C" dot-libs]})
-    ;; workaround, reported here https://github.com/ikappaki/jank-win/issues/37
-    (fs/copy (str sdl-dir "/bin/SDL3_image.dll") (str sdl-dir "/bin/libSDL3_image.dll") {:replace-existing true})
     (log "download-sdl3-image done")
     (log (str "  include dir: " sdl-dir "/include"))
     (log (str "  bin dir: " sdl-dir "/bin"))))
 
-(defn workaround [& _]
+(defn gather-shared-libs [& _]
   (fs/copy (str dot-libs sdl-release "/bin/SDL3.dll") (str @target-dir "/SDL3.dll") {:replace-existing true})
   #_(fs/copy (str dot-libs sdl-image-release "/bin/SDL3_image.dll") (str @target-dir "/SDL3_image.dll") {:replace-existing true})
   (log "workaround done"))
@@ -160,7 +156,7 @@
         jcmd (jank-command jedn "compile" {:main-module (get-main-module @deps-basis) :extra ["-o" jout]})]
     (log jcmd)
     (b/process {:command-args jcmd})
-    (workaround)))
+    (gather-shared-libs)))
 
 (defn play [& _]
   (let [main-exe (str @target-dir "/" (-> @deps-basis :jank :compile-out) ".exe")]
