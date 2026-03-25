@@ -28,24 +28,10 @@
     { 0.5f, -0.5f, 0.0f, 1.0f, 0.1f, 1.0f, 1.0f, 1.0f, 1.0f}  // bottom right vertex
 };")
 
-(comment
-
-  (.-x (cpp/aget cpp/vertices #cpp 1))
-
-  :-)
-
-;; https://clojurians.slack.com/archives/C03SRH97FDK/p1757647872126659?thread_ts=1757644640.338809&cid=C03SRH97FDK
-;; (cpp/raw "void temp_aset(Vertex *p, size_t i, Vertex t) { p[i] = t; }")
-;; the above have linker error when aot compile
-
 (defn start
   ([] (start {}))
   ([{:keys [stop-atom]}]
    (must-be-true (cpp/SDL_Init (bit-or cpp/SDL_INIT_VIDEO cpp/SDL_INIT_GAMEPAD)))
-
-   ;; "resources/horse/running/horse-1.png" does not exist, want to see error
-   #_(let [img (must-return (cpp/IMG_Load "resources/horse/running/horse-1.png"))]
-       (cpp/SDL_DestroySurface img))
 
    (let [main-scale   (cpp/SDL_GetDisplayContentScale (cpp/SDL_GetPrimaryDisplay))
          window-flags (bit-or cpp/SDL_WINDOW_RESIZABLE cpp/SDL_WINDOW_HIDDEN cpp/SDL_WINDOW_HIGH_PIXEL_DENSITY)

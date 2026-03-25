@@ -3,8 +3,8 @@
 > `bermain` is an indonesian word for `play`
 
 prereq:
-- [jank (currently using not-yet upstreamed windows port)](https://github.com/ikappaki/jank-win)
-- and jank's cpp toolchain (windows: [msys2](https://www.msys2.org/), untested in other OS)
+- [jank (currently using not-yet upstreamed windows port, built from source)](https://github.com/ikappaki/jank-win)
+- and jank's cpp toolchain (windows: [MSYS2/CLANG64](https://www.msys2.org/), untested in other OS)
 - [babashka](https://book.babashka.org/#getting_started)
 - [Vulkan SDK](https://vulkan.lunarg.com/) to precompile shaders
 - and more listed in `bb prep` section
@@ -17,7 +17,6 @@ bb prep
 # this does
 bb lets prep-kondo # this shells out to clj-kondo (optional, this fetch the configs from dependencis via --copy-configs)
 bb lets download-sdl3 # download SDL3 release to a local `.libs` folder, then unzip
-bb lets download-sdl3-image # download SDL3_image release to a local `.libs` folder, then unzip
 bb lets compile-shaders # this shells out to Vulkan SDK's `glslc`, and compile everything in `shaders` folder
 ```
 
