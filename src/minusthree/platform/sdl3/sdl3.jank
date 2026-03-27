@@ -3,9 +3,9 @@
    "SDL3/SDL.h"
    "extra.hpp")
   (:require
-   [minusthree.platform.sdl3.learn.learn01-triangle :refer [triangle-sdl]]))
+   [minusthree.platform.sdl3.learn.learn02-texquad :refer [texquad]]))
 
 (defn start
   ([] (start {}))
   ([{:keys [stop-atom]}]
-   (triangle-sdl stop-atom)))
+   (texquad stop-atom)))
