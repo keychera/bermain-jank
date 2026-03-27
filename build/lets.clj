@@ -100,8 +100,8 @@
   (let [shaders
         (eduction
          (filter (every-pred fs/regular-file?
-                             #(or (str/ends-with? % ".frag.hlsl")
-                                  (str/ends-with? % ".vert.hlsl"))))
+                             #(or (str/ends-with? % ".frag.glsl")
+                                  (str/ends-with? % ".vert.glsl"))))
          (map (fn [shader-file]
                 (let [[shader-name shader-type] (str/split (fs/file-name shader-file) #"\.")]
                   [(fs/parent shader-file) (str shader-file) shader-name shader-type])))
