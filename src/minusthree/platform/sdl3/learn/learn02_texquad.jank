@@ -1,7 +1,7 @@
 (ns minusthree.platform.sdl3.learn.learn02-texquad
   (:require
    [minusthree.engine.time :as time]
-   [minusthree.platform.sdl3.common :refer [must-be-true must-return]]
+   [minusthree.platform.sdl3.common :refer [cmutate must-be-true must-return]]
    [minusthree.platform.sdl3.sdl3-events :as sdl3-events]))
 
 ;; https://github.com/TheSpydog/SDL_gpu_examples/blob/main/Examples/TexturedQuad.c
@@ -25,11 +25,84 @@
            :gpu-device (cpp/box gpu-device)
            :sdl-window (cpp/box sdl-window))))
 
+(defn prepare-pipeline [{:keys [gpu-device sdl-window] :as game}]
+  (let [gpu-device        (cpp/unbox (:* cpp/SDL_GPUDevice) gpu-device)
+        sdl-window        (cpp/unbox (:* cpp/SDL_Window) sdl-window)
+
+        code-size         (cpp/size_t)
+        vert-code         (must-return (cpp/SDL_LoadFile "shaders/texquad.vert.spv" (cpp/& code-size)))
+        vert-info         (cmutate (cpp/SDL_GPUShaderCreateInfo code-size (cpp/cast (cpp/type (:* cpp/Uint8)) vert-code) #cpp "main")
+                            {:format               cpp/SDL_GPU_SHADERFORMAT_SPIRV
+                             :stage                cpp/SDL_GPU_SHADERSTAGE_VERTEX
+                             :num_samplers         0
+                             :num_storage_buffers  0
+                             :num_storage_textures 0
+                             :num_uniform_buffers  0})
+        vert-shader       (must-return (cpp/SDL_CreateGPUShader gpu-device (cpp/& vert-info)))
+
+        frag-code         (must-return (cpp/SDL_LoadFile "shaders/texquad.frag.spv" (cpp/& code-size)))
+        frag-info         (cmutate (cpp/SDL_GPUShaderCreateInfo code-size (cpp/cast (cpp/type (:* cpp/Uint8)) frag-code) #cpp "main")
+                            {:format               cpp/SDL_GPU_SHADERFORMAT_SPIRV
+                             :stage                cpp/SDL_GPU_SHADERSTAGE_FRAGMENT
+                             :num_samplers         1
+                             :num_storage_buffers  0
+                             :num_storage_textures 0
+                             :num_uniform_buffers  0})
+        frag-shader       (must-return (cpp/SDL_CreateGPUShader gpu-device (cpp/& frag-info)))
+
+        Vertex-size       (cpp/int 99) ;; TODO manual
+        color-target-desc ((cpp/type (cpp/std.array cpp/SDL_GPUColorTargetDescription 1)))
+        _                 (cmutate (cpp/aget color-target-desc #cpp 0)
+                            {:format (cpp/SDL_GetGPUSwapchainTextureFormat gpu-device sdl-window)})
+        vert-buffer-desc  ((cpp/type (cpp/std.array cpp/SDL_GPUVertexBufferDescription 1)))
+        _                 (cmutate (cpp/aget vert-buffer-desc #cpp 0)
+                            {:slot               0
+                             :input_rate         cpp/SDL_GPU_VERTEXINPUTRATE_VERTEX
+                             :instance_step_rate 0
+                             :pitch              Vertex-size})
+        vert-attributes   ((cpp/type (cpp/std.array cpp/SDL_GPUVertexAttribute 2)))
+        _                 (cmutate (cpp/aget vert-attributes #cpp 0)
+                            {:buffer_slot 0
+                             :location    0
+                             :format      cpp/SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3
+                             :offset      0})
+        _                 (cmutate (cpp/aget vert-attributes #cpp 1)
+                            {:buffer_slot 0
+                             :location    1
+                             :format      cpp/SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3
+                             :offset      12})
+        pipeline-info     (cmutate (cpp/SDL_GPUGraphicsPipelineCreateInfo)
+                            {:target_info
+                             (cmutate (cpp/SDL_GPUGraphicsPipelineTargetInfo)
+                               {:num_color_targets         1
+                                :color_target_descriptions (cpp/cast (cpp/type (:* (:const cpp/SDL_GPUColorTargetDescription))) (.data color-target-desc))})
+                             :vertex_input_state
+                             (cmutate (cpp/SDL_GPUVertexInputState)
+                               {:num_vertex_buffers         1
+                                :vertex_buffer_descriptions (cpp/cast (cpp/type (:* (:const cpp/SDL_GPUVertexBufferDescription))) (.data vert-buffer-desc))
+                                :num_vertex_attributes      2
+                                :vertex_attributes          (cpp/cast (cpp/type (:* (:const cpp/SDL_GPUVertexAttribute))) (.data vert-attributes))})
+                             :primitive_type  cpp/SDL_GPU_PRIMITIVETYPE_TRIANGLELIST
+                             :vertex_shader   vert-shader
+                             :fragment_shader frag-shader})
+        pipeline          (must-return (cpp/SDL_CreateGPUGraphicsPipeline gpu-device (cpp/& pipeline-info)))]
+
+    (cpp/SDL_ReleaseGPUShader gpu-device vert-shader)
+    (cpp/SDL_ReleaseGPUShader gpu-device frag-shader)
+
+    (assoc game :pipeline (cpp/box pipeline))))
+
 (defn advance [game]
   game)
 
 (defn render [game]
   game)
+
+(defn release-pipeline [{:keys [gpu-device pipeline] :as game}]
+  (let [gpu-device (cpp/unbox (:* cpp/SDL_GPUDevice) gpu-device)
+        pipeline   (cpp/unbox (:* cpp/SDL_GPUGraphicsPipeline) pipeline)]
+    (cpp/SDL_ReleaseGPUGraphicsPipeline gpu-device pipeline)
+    game))
 
 (defn quit [{:keys [gpu-device sdl-window]}]
   (let [gpu-device (cpp/unbox (:* cpp/SDL_GPUDevice) gpu-device)
@@ -43,7 +116,8 @@
   (must-be-true (cpp/SDL_Init (bit-or cpp/SDL_INIT_VIDEO cpp/SDL_INIT_GAMEPAD)))
 
   (loop [game (-> (time/init)
-                  (begin))]
+                  (begin)
+                  (prepare-pipeline))]
     (let [total (/ (cpp/SDL_GetTicks) 1000.0)
           delta (- total (time/get-total game))
           game  (-> (sdl3-events/poll-events game)
@@ -52,4 +126,6 @@
                     (render))]
       (if-not (or (::sdl3-events/end? game) (and stop-atom @stop-atom))
         (recur game)
-        (quit game)))))
+        (-> game
+            (release-pipeline)
+            (quit))))))
