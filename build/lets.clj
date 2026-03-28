@@ -101,13 +101,15 @@
         (eduction
          (filter (every-pred fs/regular-file?
                              #(or (str/ends-with? % ".frag.glsl")
-                                  (str/ends-with? % ".vert.glsl"))))
+                                  (str/ends-with? % ".vert.glsl")
+                                  (str/ends-with? % ".frag.hlsl")
+                                  (str/ends-with? % ".vert.hlsl"))))
          (map (fn [shader-file]
                 (let [[shader-name shader-type] (str/split (fs/file-name shader-file) #"\.")]
                   [(fs/parent shader-file) (str shader-file) shader-name shader-type])))
          (file-seq (fs/file shader-home)))]
     (doseq [[parent shader-file shader-name shader-type] shaders]
-      (let [spv-out  (str parent "/" shader-name ".spv")
+      (let [spv-out  (str parent "/" shader-name "." shader-type ".spv")
             -fshader (case shader-type
                        "vert" "-fshader-stage=vertex"
                        "frag" "-fshader-stage=fragment")]

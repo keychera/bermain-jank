@@ -113,7 +113,7 @@
           (cpp/SDL_UnmapGPUTransferBuffer gpu-device transfer-buffer)
 
           (let [code-size         (cpp/size_t)
-                vert-code         (must-return (cpp/SDL_LoadFile "shaders/vertex.spv" (cpp/& code-size)))
+                vert-code         (must-return (cpp/SDL_LoadFile "shaders/vertex.vert.spv" (cpp/& code-size)))
                 vert-info         (cmutate (cpp/SDL_GPUShaderCreateInfo code-size (cpp/cast (cpp/type (:* cpp/Uint8)) vert-code) #cpp "main")
                                     {:format               cpp/SDL_GPU_SHADERFORMAT_SPIRV
                                      :stage                cpp/SDL_GPU_SHADERSTAGE_VERTEX
@@ -123,7 +123,7 @@
                                      :num_uniform_buffers  0})
                 vert-shader       (cpp/SDL_CreateGPUShader gpu-device (cpp/& vert-info))
                    ; can we reuse code-size?
-                frag-code         (must-return (cpp/SDL_LoadFile "shaders/fragment.spv" (cpp/& code-size)))
+                frag-code         (must-return (cpp/SDL_LoadFile "shaders/fragment.frag.spv" (cpp/& code-size)))
                 frag-info         (cmutate (cpp/SDL_GPUShaderCreateInfo code-size (cpp/cast (cpp/type (:* cpp/Uint8)) frag-code) #cpp "main")
                                     {:format               cpp/SDL_GPU_SHADERFORMAT_SPIRV
                                      :stage                cpp/SDL_GPU_SHADERSTAGE_FRAGMENT
