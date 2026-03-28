@@ -19,3 +19,30 @@
 
 (defmacro assign [self member value]
   `(-> ~self ~member (cpp/= ~value)))
+
+(defmacro cmutate [type-name struct-map]
+  (let [assign-statements
+        (map (fn [[k v]]
+               (let [interop-sym (symbol (str ".-" (name k)))
+                     value-sym   (cond
+                                   (boolean? v) (if v `cpp/true `cpp/false)
+                                   (int? v) `(cpp/int ~v)
+                                   (float? v)  `(cpp/float ~v)
+                                   (string? v) `(cpp/std.string ~v)
+                                   :else v)]
+                 `(assign ~interop-sym ~value-sym)))
+             struct-map)]
+    `(doto ~type-name ~@assign-statements)))
+
+(comment
+
+  (macroexpand-1
+   '(cstruct (cpp/SDL_GPUShaderCreateInfo)
+      {:code_size    10
+       :code         (cpp/cast (cpp/type (:* cpp/Uint8)) vert-code)
+       :entrypoint   "main"
+       :type         cpp/SDL_GPU_TEXTURETYPE_2D
+       :format       cpp/SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM
+       :random_float 1.0}))
+
+  :-)

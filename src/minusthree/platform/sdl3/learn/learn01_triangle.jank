@@ -1,9 +1,9 @@
 (ns minusthree.platform.sdl3.learn.learn01-triangle
   (:require
    [minusthree.engine.time :as time]
-   [minusthree.platform.sdl3.common :refer [assign must-be-true must-return]]
+   [minusthree.platform.sdl3.common :refer [assign cmutate must-be-true
+                                            must-return]]
    [minusthree.platform.sdl3.sdl3-events :as sdl3-events]))
-
 
 (cpp/raw "#define STB_IMAGE_IMPLEMENTATION")
 ;; https://clojurians.slack.com/archives/C03SRH97FDK/p1757880484171019?thread_ts=1757879532.260299&cid=C03SRH97FDK
@@ -25,7 +25,6 @@
     {-0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f}, // bottom left vertex
     { 0.5f, -0.5f, 0.0f, 1.0f, 0.1f, 1.0f, 1.0f, 1.0f, 1.0f}  // bottom right vertex
 };")
-
 
 (defn triangle-sdl [stop-atom]
   (must-be-true (cpp/SDL_Init (bit-or cpp/SDL_INIT_VIDEO cpp/SDL_INIT_GAMEPAD)))
@@ -115,23 +114,23 @@
 
           (let [code-size         (cpp/size_t)
                 vert-code         (must-return (cpp/SDL_LoadFile "shaders/vertex.spv" (cpp/& code-size)))
-                vert-info         (doto (cpp/SDL_GPUShaderCreateInfo code-size (cpp/cast (cpp/type (:* cpp/Uint8)) vert-code) #cpp "main")
-                                    (assign .-format cpp/SDL_GPU_SHADERFORMAT_SPIRV)
-                                    (assign .-stage cpp/SDL_GPU_SHADERSTAGE_VERTEX)
-                                    (assign .-num_samplers #cpp 0)
-                                    (assign .-num_storage_buffers #cpp 0)
-                                    (assign .-num_storage_textures #cpp 0)
-                                    (assign .-num_uniform_buffers #cpp 0))
+                vert-info         (cmutate (cpp/SDL_GPUShaderCreateInfo code-size (cpp/cast (cpp/type (:* cpp/Uint8)) vert-code) #cpp "main")
+                                    {:format               cpp/SDL_GPU_SHADERFORMAT_SPIRV
+                                     :stage                cpp/SDL_GPU_SHADERSTAGE_VERTEX
+                                     :num_samplers         0
+                                     :num_storage_buffers  0
+                                     :num_storage_textures 0
+                                     :num_uniform_buffers  0})
                 vert-shader       (cpp/SDL_CreateGPUShader gpu-device (cpp/& vert-info))
                    ; can we reuse code-size?
                 frag-code         (must-return (cpp/SDL_LoadFile "shaders/fragment.spv" (cpp/& code-size)))
-                frag-info         (doto (cpp/SDL_GPUShaderCreateInfo code-size (cpp/cast (cpp/type (:* cpp/Uint8)) frag-code) #cpp "main")
-                                    (assign .-format cpp/SDL_GPU_SHADERFORMAT_SPIRV)
-                                    (assign .-stage cpp/SDL_GPU_SHADERSTAGE_FRAGMENT)
-                                    (assign .-num_samplers #cpp 1)
-                                    (assign .-num_storage_buffers #cpp 0)
-                                    (assign .-num_storage_textures #cpp 0)
-                                    (assign .-num_uniform_buffers #cpp 1))
+                frag-info         (cmutate (cpp/SDL_GPUShaderCreateInfo code-size (cpp/cast (cpp/type (:* cpp/Uint8)) frag-code) #cpp "main")
+                                    {:format               cpp/SDL_GPU_SHADERFORMAT_SPIRV
+                                     :stage                cpp/SDL_GPU_SHADERSTAGE_FRAGMENT
+                                     :num_samplers         1
+                                     :num_storage_buffers  0
+                                     :num_storage_textures 0
+                                     :num_uniform_buffers  1})
                 frag-shader       (cpp/SDL_CreateGPUShader gpu-device (cpp/& frag-info))
                 _                 (cpp/SDL_free vert-code)
                 _                 (cpp/SDL_free frag-code)
