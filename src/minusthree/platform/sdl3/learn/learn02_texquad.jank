@@ -164,7 +164,7 @@
               (cpp/extra.aset idx-data (cpp/size_t 2) (cpp/size_t 2))
               (cpp/extra.aset idx-data (cpp/size_t 3) (cpp/size_t 0))
               (cpp/extra.aset idx-data (cpp/size_t 4) (cpp/size_t 2))
-              (cpp/extra.aset idx-data (cpp/size_t 5) (cpp/size_t 2)))
+              (cpp/extra.aset idx-data (cpp/size_t 5) (cpp/size_t 3)))
 
             (cpp/SDL_UnmapGPUTransferBuffer gpu-device buf-transfer-buffer))
 
@@ -226,8 +226,36 @@
 (defn advance [game]
   game)
 
-(defn render [game]
-  game)
+(defn render [{:keys [gpu-device sdl-window pipeline vertex-buffer idx-buffer texture sampler] :as game}]
+  (let [gpu-device     (cpp/unbox (:* cpp/SDL_GPUDevice) gpu-device)
+        sdl-window     (cpp/unbox (:* cpp/SDL_Window) sdl-window)
+        pipeline       (cpp/unbox (:* cpp/SDL_GPUGraphicsPipeline) pipeline)
+        vertex-buffer  (cpp/unbox (:* cpp/SDL_GPUBuffer) vertex-buffer)
+        idx-buffer     (cpp/unbox (:* cpp/SDL_GPUBuffer) idx-buffer)
+        texture        (cpp/unbox (:* cpp/SDL_GPUTexture) texture)
+        sampler        (cpp/unbox (:* cpp/SDL_GPUSampler) sampler)
+
+        command-buffer (cpp/SDL_AcquireGPUCommandBuffer gpu-device)
+        swapchain-tex  ((cpp/type (:* cpp/SDL_GPUTexture)))]
+    (cpp/SDL_WaitAndAcquireGPUSwapchainTexture command-buffer sdl-window (cpp/& swapchain-tex) cpp/nullptr cpp/nullptr)
+
+    (when-not (cpp/== cpp/nullptr swapchain-tex)
+      (let [color-target (cmutate (cpp/SDL_GPUColorTargetInfo)
+                           {:texture     swapchain-tex
+                            :clear_color (cpp/SDL_FColor (cpp/float 1.0) (cpp/float 1.0) (cpp/float 1.0) (cpp/float 1.0))
+                            :load_op     cpp/SDL_GPU_LOADOP_CLEAR
+                            :store_op    cpp/SDL_GPU_STOREOP_STORE})
+            render-pass  (cpp/SDL_BeginGPURenderPass command-buffer (cpp/& color-target) #cpp 1 cpp/nullptr)]
+        (cpp/SDL_BindGPUGraphicsPipeline render-pass pipeline)
+
+        (cpp/SDL_BindGPUVertexBuffers render-pass #cpp 0 (cpp/& (cmutate (cpp/SDL_GPUBufferBinding) {:buffer vertex-buffer :offset 0})) #cpp 1)
+        (cpp/SDL_BindGPUIndexBuffer render-pass (cpp/& (cmutate (cpp/SDL_GPUBufferBinding) {:buffer idx-buffer :offset 0})) cpp/SDL_GPU_INDEXELEMENTSIZE_16BIT)
+        (cpp/SDL_BindGPUFragmentSamplers render-pass #cpp 0 (cpp/& (cmutate (cpp/SDL_GPUTextureSamplerBinding) {:texture texture :sampler sampler})) #cpp 1)
+        (cpp/SDL_DrawGPUIndexedPrimitives render-pass #cpp 6 #cpp 1 #cpp 0 #cpp 0 #cpp 0)
+
+        (cpp/SDL_EndGPURenderPass render-pass)))
+    (cpp/SDL_SubmitGPUCommandBuffer command-buffer)
+    game))
 
 (defn release-gpu-resources [{:keys [gpu-device vertex-buffer idx-buffer texture sampler] :as game}]
   (let [gpu-device  (cpp/unbox (:* cpp/SDL_GPUDevice) gpu-device)
