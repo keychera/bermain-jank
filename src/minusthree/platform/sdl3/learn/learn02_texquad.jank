@@ -6,6 +6,14 @@
 
 ;; https://github.com/TheSpydog/SDL_gpu_examples/blob/main/Examples/TexturedQuad.c
 
+(cpp/raw "#define STB_IMAGE_IMPLEMENTATION")
+;; clang thread_local issue https://github.com/llvm/llvm-project/issues/188811
+(cpp/raw "#define STBI_NO_THREAD_LOCALS 1")
+(cpp/raw "#define STBI_MALLOC SDL_malloc")
+(cpp/raw "#define STBI_REALLOC SDL_realloc")
+(cpp/raw "#define STBI_FREE SDL_free")
+(include "stb_image.h")
+
 (defn begin [game]
   (let [shader-format (bit-or cpp/SDL_GPU_SHADERFORMAT_SPIRV cpp/SDL_GPU_SHADERFORMAT_MSL)
         gpu-device    (must-return (cpp/SDL_CreateGPUDevice shader-format true cpp/nullptr))
@@ -92,11 +100,81 @@
 
     (assoc game :pipeline (cpp/box pipeline))))
 
+(defn prepare-gpu-resources [{:keys [gpu-device] :as game}]
+  (let [;; jank unboxing
+        gpu-device          (cpp/unbox (:* cpp/SDL_GPUDevice) gpu-device)
+
+        ;; image loading
+        image-w             (cpp/int)
+        image-h             (cpp/int)
+        channel-count       (cpp/int)
+        image-data          (cpp/stbi_load "resources/horse/running/horse-0.png" (cpp/& image-w) (cpp/& image-h) (cpp/& channel-count) #cpp 4)
+        image-size          (cpp/int (* image-w image-h 4))
+
+        ;; gpu texture and gpu sampler
+        texture-info        (cmutate (cpp/SDL_GPUTextureCreateInfo)
+                              {:type                 cpp/SDL_GPU_TEXTURETYPE_2D
+                               :format               cpp/SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM
+                               :width                image-w
+                               :height               image-h
+                               :layer_count_or_depth 1
+                               :num_levels           1
+                               :usage                cpp/SDL_GPU_TEXTUREUSAGE_SAMPLER})
+        texture             (cpp/SDL_CreateGPUTexture gpu-device (cpp/& texture-info))
+        sampler-info        (cmutate (cpp/SDL_GPUSamplerCreateInfo)
+                              {:min_filter     cpp/SDL_GPU_FILTER_NEAREST,
+                               :mag_filter     cpp/SDL_GPU_FILTER_NEAREST,
+                               :mipmap_mode    cpp/SDL_GPU_SAMPLERMIPMAPMODE_NEAREST,
+                               :address_mode_u cpp/SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
+                               :address_mode_v cpp/SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
+                               :address_mode_w cpp/SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE})
+        sampler             (cpp/SDL_CreateGPUSampler gpu-device (cpp/& sampler-info))
+
+        ;; gpu transfer
+        transfer-info       (cmutate (cpp/SDL_GPUTransferBufferCreateInfo)
+                              {:usage cpp/SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
+                               :size  image-size})
+        tex-transfer-buffer (cpp/SDL_CreateGPUTransferBuffer gpu-device (cpp/& transfer-info))
+        transfer-data       (->> (cpp/SDL_MapGPUTransferBuffer gpu-device tex-transfer-buffer false)
+                                 (cpp/cast (cpp/type (:* int))))]
+    (cpp/SDL_memcpy transfer-data image-data image-size)
+    (cpp/SDL_UnmapGPUTransferBuffer gpu-device tex-transfer-buffer)
+
+    (let [;; gpu upload 
+          copy-location (cmutate (cpp/SDL_GPUTextureTransferInfo)
+                          {:transfer_buffer tex-transfer-buffer,
+                           :offset          0})
+          dest-region   (cmutate (cpp/SDL_GPUTextureRegion)
+                          {:texture texture
+                           :w       image-w
+                           :h       image-h
+                           :d       1})
+          copy-cmd      (cpp/SDL_AcquireGPUCommandBuffer gpu-device)
+          copy-pass     (cpp/SDL_BeginGPUCopyPass copy-cmd)]
+      (cpp/SDL_UploadToGPUTexture copy-pass (cpp/& copy-location) (cpp/& dest-region) false)
+      (cpp/SDL_EndGPUCopyPass copy-pass)
+      (cpp/SDL_SubmitGPUCommandBuffer copy-cmd)
+
+      (cpp/stbi_image_free image-data)
+      (cpp/SDL_ReleaseGPUTransferBuffer gpu-device tex-transfer-buffer)
+
+      (assoc game
+             :texture (cpp/box texture)
+             :sampler (cpp/box sampler)))))
+
 (defn advance [game]
   game)
 
 (defn render [game]
   game)
+
+(defn release-gpu-resources [{:keys [gpu-device texture sampler] :as game}]
+  (let [gpu-device (cpp/unbox (:* cpp/SDL_GPUDevice) gpu-device)
+        texture    (cpp/unbox (:* cpp/SDL_GPUTexture) texture)
+        sampler    (cpp/unbox (:* cpp/SDL_GPUSampler) sampler)]
+    (cpp/SDL_ReleaseGPUTexture gpu-device texture)
+    (cpp/SDL_ReleaseGPUSampler gpu-device sampler)
+    game))
 
 (defn release-pipeline [{:keys [gpu-device pipeline] :as game}]
   (let [gpu-device (cpp/unbox (:* cpp/SDL_GPUDevice) gpu-device)
@@ -117,7 +195,8 @@
 
   (loop [game (-> (time/init)
                   (begin)
-                  (prepare-pipeline))]
+                  (prepare-pipeline)
+                  (prepare-gpu-resources))]
     (let [total (/ (cpp/SDL_GetTicks) 1000.0)
           delta (- total (time/get-total game))
           game  (-> (sdl3-events/poll-events game)
@@ -127,5 +206,6 @@
       (if-not (or (::sdl3-events/end? game) (and stop-atom @stop-atom))
         (recur game)
         (-> game
+            (release-gpu-resources)
             (release-pipeline)
             (quit))))))
