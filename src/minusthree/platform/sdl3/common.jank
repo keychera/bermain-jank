@@ -20,7 +20,7 @@
 (defmacro assign [self member value]
   `(-> ~self ~member (cpp/= ~value)))
 
-(defmacro cmutate [type-name struct-map]
+(defmacro cmutate [cstruct struct-map]
   (let [assign-statements
         (map (fn [[k v]]
                (let [interop-sym (symbol (str ".-" (name k)))
@@ -30,19 +30,29 @@
                                    (float? v)  `(cpp/float ~v)
                                    (string? v) `(cpp/std.string ~v)
                                    :else v)]
-                 `(assign ~interop-sym ~value-sym)))
-             struct-map)]
-    `(doto ~type-name ~@assign-statements)))
+                 `(-> ~interop-sym (cpp/= ~value-sym))))
+             struct-map)
+        gx (gensym)]
+    ;; the macro below is the inside of clojure.core/doto, we wrote it this way so that jank error is nicer for now
+    `(let [~gx ~cstruct]
+       ~@(map (fn [f]
+                (with-meta
+                  (if (seq? f)
+                    `(~(first f) ~gx ~@(next f))
+                    `(~f ~gx))
+                  (meta f)))
+              assign-statements)
+       ~gx)))
 
 (comment
 
   (macroexpand-1
    '(cstruct (cpp/SDL_GPUShaderCreateInfo)
-      {:code_size    10
-       :code         (cpp/cast (cpp/type (:* cpp/Uint8)) vert-code)
-       :entrypoint   "main"
-       :type         cpp/SDL_GPU_TEXTURETYPE_2D
-       :format       cpp/SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM
-       :random_float 1.0}))
+             {:code_size    10
+              :code         (cpp/cast (cpp/type (:* cpp/Uint8)) vert-code)
+              :entrypoint   "main"
+              :type         cpp/SDL_GPU_TEXTURETYPE_2D
+              :format       cpp/SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM
+              :random_float 1.0}))
 
   :-)

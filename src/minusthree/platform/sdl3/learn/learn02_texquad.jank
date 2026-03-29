@@ -58,7 +58,8 @@
                              :num_uniform_buffers  0})
         frag-shader       (must-return (cpp/SDL_CreateGPUShader gpu-device (cpp/& frag-info)))
 
-        Vertex-size       (cpp/int 99) ;; TODO manual
+        ;; PositionTextureVertex manual size
+        Vertex-size       (cpp/int (* 5 #_floats 4 #_float-size))
         color-target-desc ((cpp/type (cpp/std.array cpp/SDL_GPUColorTargetDescription 1)))
         _                 (cmutate (cpp/aget color-target-desc #cpp 0)
                             {:format (cpp/SDL_GetGPUSwapchainTextureFormat gpu-device sdl-window)})
@@ -104,6 +105,20 @@
   (let [;; jank unboxing
         gpu-device          (cpp/unbox (:* cpp/SDL_GPUDevice) gpu-device)
 
+        ;; PositionTextureVertex manual size
+        Vertex-size         (cpp/int (* 5 #_floats 4 #_float-size))
+        vert-manual-size    (cpp/int (* Vertex-size 4 #_vertices))
+        buffer-info         (cmutate (cpp/SDL_GPUBufferCreateInfo)
+                              {:usage cpp/SDL_GPU_BUFFERUSAGE_VERTEX,
+                               :size  vert-manual-size})
+        vertex-buffer       (cpp/SDL_CreateGPUBuffer gpu-device (cpp/& buffer-info))
+
+        idx-manual-size     (cpp/int (* 2 #_Uint16 6 #_indices))
+        idx-buffer-info     (cmutate (cpp/SDL_GPUBufferCreateInfo)
+                              {:usage cpp/SDL_GPU_BUFFERUSAGE_INDEX,
+                               :size  idx-manual-size})
+        idx-buffer          (cpp/SDL_CreateGPUBuffer gpu-device (cpp/& idx-buffer-info))
+
         ;; image loading
         image-w             (cpp/int)
         image-h             (cpp/int)
@@ -130,37 +145,83 @@
                                :address_mode_w cpp/SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE})
         sampler             (cpp/SDL_CreateGPUSampler gpu-device (cpp/& sampler-info))
 
-        ;; gpu transfer
-        transfer-info       (cmutate (cpp/SDL_GPUTransferBufferCreateInfo)
+        ;; Set up buffer data
+        buf-transfer-info   (cmutate (cpp/SDL_GPUTransferBufferCreateInfo)
+                              {:usage cpp/SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
+                               :size  (cpp/int (+ vert-manual-size idx-manual-size))})
+        buf-transfer-buffer (cpp/SDL_CreateGPUTransferBuffer gpu-device (cpp/& buf-transfer-info))
+        buf-transfer-data   (->> (cpp/SDL_MapGPUTransferBuffer gpu-device buf-transfer-buffer false)
+                                 (cpp/cast (cpp/type (:* cpp/extra.PositionTextureVertex))))
+        _
+        (do (cpp/extra.aset buf-transfer-data (cpp/size_t 0) (cmutate (cpp/extra.PositionTextureVertex) {:x -1.0 :y 1.0  :z 0.0 :u 0.0 :v 0.0}))
+            (cpp/extra.aset buf-transfer-data (cpp/size_t 1) (cmutate (cpp/extra.PositionTextureVertex) {:x 1.0  :y 1.0  :z 0.0 :u 4.0 :v 0.0}))
+            (cpp/extra.aset buf-transfer-data (cpp/size_t 2) (cmutate (cpp/extra.PositionTextureVertex) {:x 1.0  :y -1.0 :z 0.0 :u 4.0 :v 4.0}))
+            (cpp/extra.aset buf-transfer-data (cpp/size_t 3) (cmutate (cpp/extra.PositionTextureVertex) {:x -1.0 :y -1.0 :z 0.0 :u 0.0 :v 4.0}))
+
+            (let [idx-data (cpp/unsafe-cast (cpp/type (:* cpp/Uint16)) (cpp/& (cpp/aget buf-transfer-data #cpp 4)))]
+              (cpp/extra.aset idx-data (cpp/size_t 0) (cpp/size_t 0))
+              (cpp/extra.aset idx-data (cpp/size_t 1) (cpp/size_t 1))
+              (cpp/extra.aset idx-data (cpp/size_t 2) (cpp/size_t 2))
+              (cpp/extra.aset idx-data (cpp/size_t 3) (cpp/size_t 0))
+              (cpp/extra.aset idx-data (cpp/size_t 4) (cpp/size_t 2))
+              (cpp/extra.aset idx-data (cpp/size_t 5) (cpp/size_t 2)))
+
+            (cpp/SDL_UnmapGPUTransferBuffer gpu-device buf-transfer-buffer))
+
+        ;; Set up texture data
+        tex-transfer-info   (cmutate (cpp/SDL_GPUTransferBufferCreateInfo)
                               {:usage cpp/SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
                                :size  image-size})
-        tex-transfer-buffer (cpp/SDL_CreateGPUTransferBuffer gpu-device (cpp/& transfer-info))
-        transfer-data       (->> (cpp/SDL_MapGPUTransferBuffer gpu-device tex-transfer-buffer false)
-                                 (cpp/cast (cpp/type (:* int))))]
-    (cpp/SDL_memcpy transfer-data image-data image-size)
-    (cpp/SDL_UnmapGPUTransferBuffer gpu-device tex-transfer-buffer)
+        tex-transfer-buffer (cpp/SDL_CreateGPUTransferBuffer gpu-device (cpp/& tex-transfer-info))
+        tex-transfer-data   (->> (cpp/SDL_MapGPUTransferBuffer gpu-device tex-transfer-buffer false)
+                                 (cpp/cast (cpp/type (:* int))))
+        _
+        (do (cpp/SDL_memcpy tex-transfer-data image-data image-size)
+            (cpp/SDL_UnmapGPUTransferBuffer gpu-device tex-transfer-buffer))
 
-    (let [;; gpu upload 
-          copy-location (cmutate (cpp/SDL_GPUTextureTransferInfo)
-                          {:transfer_buffer tex-transfer-buffer,
-                           :offset          0})
-          dest-region   (cmutate (cpp/SDL_GPUTextureRegion)
-                          {:texture texture
-                           :w       image-w
-                           :h       image-h
-                           :d       1})
-          copy-cmd      (cpp/SDL_AcquireGPUCommandBuffer gpu-device)
-          copy-pass     (cpp/SDL_BeginGPUCopyPass copy-cmd)]
-      (cpp/SDL_UploadToGPUTexture copy-pass (cpp/& copy-location) (cpp/& dest-region) false)
-      (cpp/SDL_EndGPUCopyPass copy-pass)
-      (cpp/SDL_SubmitGPUCommandBuffer copy-cmd)
+        ;; gpu upload/copy pass
+        upload-cmd-buf      (cpp/SDL_AcquireGPUCommandBuffer gpu-device)
+        copy-pass           (cpp/SDL_BeginGPUCopyPass upload-cmd-buf)]
 
-      (cpp/stbi_image_free image-data)
-      (cpp/SDL_ReleaseGPUTransferBuffer gpu-device tex-transfer-buffer)
+    (let [copy-loc    (cmutate (cpp/SDL_GPUTransferBufferLocation)
+                        {:transfer_buffer buf-transfer-buffer
+                         :offset          0})
+          dest-region (cmutate (cpp/SDL_GPUBufferRegion)
+                        {:buffer vertex-buffer
+                         :offset 0
+                         :size   vert-manual-size})]
+      (cpp/SDL_UploadToGPUBuffer copy-pass (cpp/& copy-loc) (cpp/& dest-region) false))
 
-      (assoc game
-             :texture (cpp/box texture)
-             :sampler (cpp/box sampler)))))
+    (let [copy-loc    (cmutate (cpp/SDL_GPUTransferBufferLocation)
+                        {:transfer_buffer buf-transfer-buffer
+                         :offset          vert-manual-size})
+          dest-region (cmutate (cpp/SDL_GPUBufferRegion)
+                        {:buffer idx-buffer
+                         :offset 0
+                         :size   idx-manual-size})]
+      (cpp/SDL_UploadToGPUBuffer copy-pass (cpp/& copy-loc) (cpp/& dest-region) false))
+
+    (let [copy-loc    (cmutate (cpp/SDL_GPUTextureTransferInfo)
+                        {:transfer_buffer tex-transfer-buffer,
+                         :offset          0})
+          dest-region (cmutate (cpp/SDL_GPUTextureRegion)
+                        {:texture texture
+                         :w       image-w
+                         :h       image-h
+                         :d       1})]
+      (cpp/SDL_UploadToGPUTexture copy-pass (cpp/& copy-loc) (cpp/& dest-region) false))
+
+    (cpp/SDL_EndGPUCopyPass copy-pass)
+    (cpp/SDL_SubmitGPUCommandBuffer upload-cmd-buf)
+    (cpp/stbi_image_free image-data)
+    (cpp/SDL_ReleaseGPUTransferBuffer gpu-device buf-transfer-buffer)
+    (cpp/SDL_ReleaseGPUTransferBuffer gpu-device tex-transfer-buffer)
+
+    (assoc game
+           :vertex-buffer (cpp/box vertex-buffer)
+           :idx-buffer    (cpp/box idx-buffer)
+           :texture       (cpp/box texture)
+           :sampler       (cpp/box sampler))))
 
 (defn advance [game]
   game)
@@ -168,10 +229,14 @@
 (defn render [game]
   game)
 
-(defn release-gpu-resources [{:keys [gpu-device texture sampler] :as game}]
-  (let [gpu-device (cpp/unbox (:* cpp/SDL_GPUDevice) gpu-device)
-        texture    (cpp/unbox (:* cpp/SDL_GPUTexture) texture)
-        sampler    (cpp/unbox (:* cpp/SDL_GPUSampler) sampler)]
+(defn release-gpu-resources [{:keys [gpu-device vertex-buffer idx-buffer texture sampler] :as game}]
+  (let [gpu-device  (cpp/unbox (:* cpp/SDL_GPUDevice) gpu-device)
+        vert-buffer (cpp/unbox (:* cpp/SDL_GPUBuffer) vertex-buffer)
+        idx-buffer  (cpp/unbox (:* cpp/SDL_GPUBuffer) idx-buffer)
+        texture     (cpp/unbox (:* cpp/SDL_GPUTexture) texture)
+        sampler     (cpp/unbox (:* cpp/SDL_GPUSampler) sampler)]
+    (cpp/SDL_ReleaseGPUBuffer gpu-device vert-buffer)
+    (cpp/SDL_ReleaseGPUBuffer gpu-device idx-buffer)
     (cpp/SDL_ReleaseGPUTexture gpu-device texture)
     (cpp/SDL_ReleaseGPUSampler gpu-device sampler)
     game))
