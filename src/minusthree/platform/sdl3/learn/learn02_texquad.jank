@@ -2,7 +2,8 @@
   (:require
    [minusthree.engine.time :as time]
    [minusthree.platform.sdl3.common :refer [cmutate must-be-true must-return]]
-   [minusthree.platform.sdl3.sdl3-events :as sdl3-events]))
+   [minusthree.platform.sdl3.sdl3-events :as sdl3-events]
+   [minusthree.platform.sdl3.sdl3-inputs :as sdl3-inputs]))
 
 ;; https://github.com/TheSpydog/SDL_gpu_examples/blob/main/Examples/TexturedQuad.c
 
@@ -234,9 +235,11 @@
         idx-buffer     (cpp/unbox (:* cpp/SDL_GPUBuffer) idx-buffer)
         texture        (cpp/unbox (:* cpp/SDL_GPUTexture) texture)
         sampler        (cpp/unbox (:* cpp/SDL_GPUSampler) sampler)
+        delta          (::time/delta game)
 
         command-buffer (cpp/SDL_AcquireGPUCommandBuffer gpu-device)
         swapchain-tex  ((cpp/type (:* cpp/SDL_GPUTexture)))]
+    (cpp/SDL_SetWindowTitle sdl-window (str "frametime: " delta " s"))
     (cpp/SDL_WaitAndAcquireGPUSwapchainTexture command-buffer sdl-window (cpp/& swapchain-tex) cpp/nullptr cpp/nullptr)
 
     (when-not (cpp/== cpp/nullptr swapchain-tex)
@@ -296,7 +299,9 @@
                     (time/update-time total delta)
                     (advance)
                     (render))]
-      (if-not (or (::sdl3-events/end? game) (and stop-atom @stop-atom))
+      (if-not (or (::sdl3-events/end? game)
+                  (-> game ::sdl3-inputs/pressed? ::sdl3-inputs/esc)
+                  (and stop-atom @stop-atom))
         (recur game)
         (-> game
             (release-gpu-resources)

@@ -1,0 +1,31 @@
+(ns minusthree.platform.sdl3.sdl3-inputs
+  (:include "SDL3/SDL.h"))
+
+(def keyname->scancode {::esc cpp/SDL_SCANCODE_ESCAPE})
+
+(defn process-input [{:as prev-game}]
+  (let [numkeys  (cpp/int)
+        kb-state (cpp/SDL_GetKeyboardState (cpp/& numkeys))
+        game     (assoc prev-game ::pressed? #{})]
+    (loop [[[keyname scancode] & remaining] keyname->scancode
+           game'                            game]
+      (if keyname
+        (if (cpp/aget kb-state (cpp/int scancode))
+          (recur remaining (update game ::pressed? conj keyname))
+          game')
+        game'))))
+
+(comment
+
+  cpp/SDL_SCANCODE_ESCAPE
+
+  ;; somehow it still require cpp/int
+  (let [numkeys  (cpp/int)
+        kb-state (cpp/SDL_GetKeyboardState (cpp/& numkeys))]
+    (cpp/aget kb-state (cpp/int cpp/SDL_SCANCODE_ESCAPE)))
+
+  ;; reduce-kv doesn't work, loop works
+
+  (cpp/std.to_array (cpp/SDL_GetKeyboardState))
+
+  :-)

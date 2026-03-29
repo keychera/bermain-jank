@@ -1,4 +1,6 @@
-(ns minusthree.platform.sdl3.sdl3-events)
+(ns minusthree.platform.sdl3.sdl3-events
+  (:require
+   [minusthree.platform.sdl3.sdl3-inputs :as sdl3-inputs]))
 
 (defn poll-events [game]
   (let [event (cpp/SDL_Event)]
@@ -13,4 +15,4 @@
             (recur (assoc game' ::end? true))
 
             :else (recur game')))
-        game'))))
+        (sdl3-inputs/process-input game')))))
