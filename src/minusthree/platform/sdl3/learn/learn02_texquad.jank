@@ -78,7 +78,7 @@
         _                 (cmutate (cpp/aget vert-attributes #cpp 1)
                             {:buffer_slot 0
                              :location    1
-                             :format      cpp/SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3
+                             :format      cpp/SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2
                              :offset      12})
         pipeline-info     (cmutate (cpp/SDL_GPUGraphicsPipelineCreateInfo)
                             {:target_info
