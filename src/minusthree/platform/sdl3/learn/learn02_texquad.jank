@@ -40,7 +40,7 @@
 
         code-size         (cpp/size_t)
         vert-code         (must-return (cpp/SDL_LoadFile "shaders/texquad.vert.spv" (cpp/& code-size)))
-        vert-info         (cmutate (cpp/SDL_GPUShaderCreateInfo code-size (cpp/cast (cpp/type (:* cpp/Uint8)) vert-code) #cpp "main")
+        vert-info         (cmutate (cpp/SDL_GPUShaderCreateInfo code-size (cpp/cast (:* cpp/Uint8) vert-code) #cpp "main")
                             {:format               cpp/SDL_GPU_SHADERFORMAT_SPIRV
                              :stage                cpp/SDL_GPU_SHADERSTAGE_VERTEX
                              :num_samplers         0
@@ -50,7 +50,7 @@
         vert-shader       (must-return (cpp/SDL_CreateGPUShader gpu-device (cpp/& vert-info)))
 
         frag-code         (must-return (cpp/SDL_LoadFile "shaders/texquad.frag.spv" (cpp/& code-size)))
-        frag-info         (cmutate (cpp/SDL_GPUShaderCreateInfo code-size (cpp/cast (cpp/type (:* cpp/Uint8)) frag-code) #cpp "main")
+        frag-info         (cmutate (cpp/SDL_GPUShaderCreateInfo code-size (cpp/cast (:* cpp/Uint8) frag-code) #cpp "main")
                             {:format               cpp/SDL_GPU_SHADERFORMAT_SPIRV
                              :stage                cpp/SDL_GPU_SHADERSTAGE_FRAGMENT
                              :num_samplers         1
@@ -61,16 +61,16 @@
 
         ;; PositionTextureVertex manual size
         Vertex-size       (cpp/int (* 5 #_floats 4 #_float-size))
-        color-target-desc ((cpp/type (cpp/std.array cpp/SDL_GPUColorTargetDescription 1)))
+        color-target-desc ((cpp/dsl (cpp/std.array cpp/SDL_GPUColorTargetDescription 1)))
         _                 (cmutate (cpp/aget color-target-desc #cpp 0)
                             {:format (cpp/SDL_GetGPUSwapchainTextureFormat gpu-device sdl-window)})
-        vert-buffer-desc  ((cpp/type (cpp/std.array cpp/SDL_GPUVertexBufferDescription 1)))
+        vert-buffer-desc  ((cpp/dsl (cpp/std.array cpp/SDL_GPUVertexBufferDescription 1)))
         _                 (cmutate (cpp/aget vert-buffer-desc #cpp 0)
                             {:slot               0
                              :input_rate         cpp/SDL_GPU_VERTEXINPUTRATE_VERTEX
                              :instance_step_rate 0
                              :pitch              Vertex-size})
-        vert-attributes   ((cpp/type (cpp/std.array cpp/SDL_GPUVertexAttribute 2)))
+        vert-attributes   ((cpp/dsl (cpp/std.array cpp/SDL_GPUVertexAttribute 2)))
         _                 (cmutate (cpp/aget vert-attributes #cpp 0)
                             {:buffer_slot 0
                              :location    0
@@ -85,13 +85,13 @@
                             {:target_info
                              (cmutate (cpp/SDL_GPUGraphicsPipelineTargetInfo)
                                {:num_color_targets         1
-                                :color_target_descriptions (cpp/cast (cpp/type (:* (:const cpp/SDL_GPUColorTargetDescription))) (.data color-target-desc))})
+                                :color_target_descriptions (cpp/cast (:* (:const cpp/SDL_GPUColorTargetDescription)) (.data color-target-desc))})
                              :vertex_input_state
                              (cmutate (cpp/SDL_GPUVertexInputState)
                                {:num_vertex_buffers         1
-                                :vertex_buffer_descriptions (cpp/cast (cpp/type (:* (:const cpp/SDL_GPUVertexBufferDescription))) (.data vert-buffer-desc))
+                                :vertex_buffer_descriptions (cpp/cast (:* (:const cpp/SDL_GPUVertexBufferDescription)) (.data vert-buffer-desc))
                                 :num_vertex_attributes      2
-                                :vertex_attributes          (cpp/cast (cpp/type (:* (:const cpp/SDL_GPUVertexAttribute))) (.data vert-attributes))})
+                                :vertex_attributes          (cpp/cast (:* (:const cpp/SDL_GPUVertexAttribute)) (.data vert-attributes))})
                              :primitive_type  cpp/SDL_GPU_PRIMITIVETYPE_TRIANGLELIST
                              :vertex_shader   vert-shader
                              :fragment_shader frag-shader})
@@ -152,14 +152,14 @@
                                :size  (cpp/int (+ vert-manual-size idx-manual-size))})
         buf-transfer-buffer (cpp/SDL_CreateGPUTransferBuffer gpu-device (cpp/& buf-transfer-info))
         buf-transfer-data   (->> (cpp/SDL_MapGPUTransferBuffer gpu-device buf-transfer-buffer false)
-                                 (cpp/cast (cpp/type (:* cpp/extra.PositionTextureVertex))))
+                                 (cpp/cast (:* cpp/extra.PositionTextureVertex)))
         _
         (do (cpp/extra.aset buf-transfer-data (cpp/size_t 0) (cmutate (cpp/extra.PositionTextureVertex) {:x -1.0 :y 1.0  :z 0.0 :u 0.0 :v 0.0}))
             (cpp/extra.aset buf-transfer-data (cpp/size_t 1) (cmutate (cpp/extra.PositionTextureVertex) {:x 1.0  :y 1.0  :z 0.0 :u 4.0 :v 0.0}))
             (cpp/extra.aset buf-transfer-data (cpp/size_t 2) (cmutate (cpp/extra.PositionTextureVertex) {:x 1.0  :y -1.0 :z 0.0 :u 4.0 :v 4.0}))
             (cpp/extra.aset buf-transfer-data (cpp/size_t 3) (cmutate (cpp/extra.PositionTextureVertex) {:x -1.0 :y -1.0 :z 0.0 :u 0.0 :v 4.0}))
 
-            (let [idx-data (cpp/unsafe-cast (cpp/type (:* cpp/Uint16)) (cpp/& (cpp/aget buf-transfer-data #cpp 4)))]
+            (let [idx-data (cpp/unsafe-cast (:* cpp/Uint16) (cpp/& (cpp/aget buf-transfer-data #cpp 4)))]
               (cpp/extra.aset idx-data (cpp/size_t 0) (cpp/size_t 0))
               (cpp/extra.aset idx-data (cpp/size_t 1) (cpp/size_t 1))
               (cpp/extra.aset idx-data (cpp/size_t 2) (cpp/size_t 2))
@@ -175,7 +175,7 @@
                                :size  image-size})
         tex-transfer-buffer (cpp/SDL_CreateGPUTransferBuffer gpu-device (cpp/& tex-transfer-info))
         tex-transfer-data   (->> (cpp/SDL_MapGPUTransferBuffer gpu-device tex-transfer-buffer false)
-                                 (cpp/cast (cpp/type (:* int))))
+                                 (cpp/cast (:* int)))
         _
         (do (cpp/SDL_memcpy tex-transfer-data image-data image-size)
             (cpp/SDL_UnmapGPUTransferBuffer gpu-device tex-transfer-buffer))
@@ -238,7 +238,7 @@
         delta          (::time/delta game)
 
         command-buffer (cpp/SDL_AcquireGPUCommandBuffer gpu-device)
-        swapchain-tex  ((cpp/type (:* cpp/SDL_GPUTexture)))]
+        swapchain-tex  ((cpp/dsl (:* cpp/SDL_GPUTexture)))]
     (cpp/SDL_SetWindowTitle sdl-window (str "frametime: " delta " s"))
     (cpp/SDL_WaitAndAcquireGPUSwapchainTexture command-buffer sdl-window (cpp/& swapchain-tex) cpp/nullptr cpp/nullptr)
 

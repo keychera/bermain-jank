@@ -3,8 +3,7 @@
 > `bermain` is an indonesian word for `play`
 
 prereq:
-- [jank (currently using not-yet upstreamed windows port, built from source)](https://github.com/ikappaki/jank-win)
-- and jank's cpp toolchain (windows: [MSYS2/CLANG64](https://www.msys2.org/), untested in other OS)
+- [jank](https://github.com/jank-lang/jank)
 - [babashka](https://book.babashka.org/#getting_started)
 - [Vulkan SDK](https://vulkan.lunarg.com/) to precompile shaders
 - and more listed in `bb prep` section
