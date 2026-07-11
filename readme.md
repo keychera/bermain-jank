@@ -150,3 +150,20 @@ Stack trace (most recent call first):
 #18 in BaseThreadInitThunk at KERNEL32.DLL
 #19 in RtlUserThreadStart at ntdll.dll
 ```
+
+
+# catching up
+
+jank print-binary-version
+x86_64-w64-windows-gnu-a20d44e2d447c35eb9da21888fdf1b2b152d81a3591594cd1b2610c1123c7da4
+
+when building we encountered error on running `./bin/compile`
+
+```
+compiler+runtime/src/cpp/clojure/data/json_native.cpp:1:10: fatal error: 'nlohmann/json.hpp' file not found
+    1 | #include <nlohmann/json.hpp>
+
+```
+
+solution:
+pacman -S mingw-w64-clang-x86_64-nlohmann-json
