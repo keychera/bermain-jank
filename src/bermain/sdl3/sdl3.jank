@@ -1,0 +1,59 @@
+(ns bermain.sdl3.sdl3
+  (:include "SDL3/SDL.h")
+  (:require
+   [bermain.sdl3.common :refer [must-be-true must-be-some]]))
+
+; following https://www.youtube.com/watch?v=Wu2g-N5Z78Y
+
+(declare poll-events cleanup)
+
+(defn main []
+  (must-be-true (cpp/SDL_Init (bit-or cpp/SDL_INIT_VIDEO cpp/SDL_INIT_GAMEPAD)) nil)
+
+  (let [main-scale   (cpp/SDL_GetDisplayContentScale (cpp/SDL_GetPrimaryDisplay))
+        window-flags (bit-or cpp/SDL_WINDOW_RESIZABLE cpp/SDL_WINDOW_HIDDEN cpp/SDL_WINDOW_HIGH_PIXEL_DENSITY)
+        width        (int (* 560 main-scale))
+        height       (int (* 560 main-scale))
+        game         {}
+        sdl-window   (must-be-some
+                      (cpp/SDL_CreateWindow "Hello again jank + sdl3!" width height window-flags)
+                      #_or (cleanup game))
+        game         (assoc game :sdl-window (cpp/box sdl-window))
+        sdl-renderer (must-be-some
+                      (cpp/SDL_CreateRenderer sdl-window cpp/nullptr)
+                      #_or (cleanup game))
+        game         (assoc game :sdl-renderer (cpp/box sdl-renderer))]
+    (cpp/SDL_SetWindowPosition sdl-window cpp/SDL_WINDOWPOS_CENTERED cpp/SDL_WINDOWPOS_CENTERED)
+    (cpp/SDL_SetWindowAlwaysOnTop sdl-window true)
+    (cpp/SDL_ShowWindow sdl-window)
+
+    (loop [game game]
+      (when-not (::end? game)
+        (let [game' (-> game
+                        (poll-events))]
+          (cpp/SDL_SetRenderDrawColor sdl-renderer 255 255 255 255)
+          (cpp/SDL_RenderClear sdl-renderer)
+          (cpp/SDL_RenderPresent sdl-renderer)
+          (recur game'))))
+
+    (cleanup game)))
+
+(defn poll-events [game]
+  (let [event (cpp/SDL_Event)]
+    (loop [game' game]
+      (if (cpp/SDL_PollEvent (cpp/& event))
+          ;; from https://wiki.libsdl.org/SDL3/SDL_Event
+          ;; Uint32 type; /**< Event type, shared with all events, Uint32 to cover user events which are not in the SDL_EventType enumeration */
+        (let [event-type (cpp/unsafe-cast cpp/SDL_EventType (.-type event))]
+          (cond
+            (or (cpp/== event-type cpp/SDL_EVENT_QUIT)
+                (cpp/== event-type cpp/SDL_EVENT_WINDOW_CLOSE_REQUESTED))
+            (recur (assoc game' ::end? true))
+
+            :else (recur game')))
+        game'))))
+
+(defn cleanup [{:keys [sdl-renderer sdl-window]}]
+  (when sdl-renderer (cpp/SDL_DestroyRenderer (cpp/unbox (:* cpp/SDL_Renderer) sdl-renderer)))
+  (when sdl-window (cpp/SDL_DestroyWindow (cpp/unbox (:* cpp/SDL_Window) sdl-window)))
+  (cpp/SDL_Quit))

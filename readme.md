@@ -63,3 +63,34 @@ pacman -S mingw-w64-clang-x86_64-nlohmann-json
 
 we wanted to try out raylib but blocked by: https://github.com/raysan5/raylib/issues/1217
 
+## error 2
+
+```clojure
+(defmacro must-be-true
+  ([form] (must-be-true form nil))
+  ([form callback]
+   (let [first-sym (str (first form))]
+     `(when (not ~form)
+        ~callback
+        (throw-sdl-error (str "Error on " ~first-sym))))))
+```
+
+internal error
+```
+JIT session error: Symbols not found: [ bermain_sdl3_common_must_be_true_12_2 ]
+─ analyze/macro-expansion-exception ────────────────────────────────────────────────────────────────
+error: Uncaught exception while expanding macro.                                                    
+
+─────┬──────────────────────────────────────────────────────────────────────────────────────────────
+     │ src\bermain\sdl3\sdl3.jank
+─────┼──────────────────────────────────────────────────────────────────────────────────────────────
+  8  │ (declare poll-events cleanup)
+  9  │
+ 10  │ (defn main []
+     │ ^ Expanded from this macro.
+ 11  │   (must-be-true (cpp/SDL_Init (bit-or cpp/SDL_INIT_VIDEO cpp/SDL_INIT_GAMEPAD)))
+     │   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Found here. 
+─────┴──────────────────────────────────────────────────────────────────────────────────────────────
+─ internal/failure ─────────────────────────────────────────────────────────────────────────────────
+error: Failed to find symbol: 'bermain_sdl3_common_must_be_true_12_4'  
+```
