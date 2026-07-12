@@ -90,8 +90,7 @@
 
 (defn gather-shared-libs [& _]
   (fs/copy (str dot-libs sdl-release "/bin/SDL3.dll") (str @target-dir "/SDL3.dll") {:replace-existing true})
-  #_(fs/copy (str dot-libs sdl-image-release "/bin/SDL3_image.dll") (str @target-dir "/SDL3_image.dll") {:replace-existing true})
-  (log "workaround done"))
+  (fs/copy (str dot-libs sdl-image-release "/bin/SDL3_image.dll") (str @target-dir "/SDL3_image.dll") {:replace-existing true}))
 
 (def shader-home "shaders")
 
@@ -128,6 +127,7 @@
   (prep-kondo args)
   (tell-clangd args)
   (download-sdl3 args)
+  (download-sdl3-image args)
   (compile-shaders args))
 
 (defn clean [& _]
@@ -154,8 +154,8 @@
 (defn compile-jank
   [{}]
   (let [jedn (->jank-deps-edn @deps-basis)
-        jout (str @target-dir "/" (-> @deps-basis :jank :compile-out))
-        jcmd (jank-command jedn "compile" {:main-module (get-main-module @deps-basis) :extra ["-o" jout]})]
+        jout (-> @deps-basis :jank :compile-out)
+        jcmd (jank-command jedn "compile" {:main-module (get-main-module @deps-basis) :extra ["--name" jout]})]
     (log jcmd)
     (b/process {:command-args jcmd})
     (gather-shared-libs)))
