@@ -1,5 +1,7 @@
 (ns bermain.sdl3.sdl3
-  (:include "SDL3/SDL.h")
+  (:include
+   "SDL3/SDL.h"
+   "SDL3_image/SDL_image.h")
   (:require
    [bermain.sdl3.common :refer [must-be-true must-be-some]]))
 
@@ -27,14 +29,28 @@
     (cpp/SDL_SetWindowAlwaysOnTop sdl-window true)
     (cpp/SDL_ShowWindow sdl-window)
 
-    (loop [game game]
-      (when-not (::end? game)
-        (let [game' (-> game
-                        (poll-events))]
-          (cpp/SDL_SetRenderDrawColor sdl-renderer 255 255 255 255)
-          (cpp/SDL_RenderClear sdl-renderer)
-          (cpp/SDL_RenderPresent sdl-renderer)
-          (recur game'))))
+    (let [logical-w 640
+          logical-h 320]
+      (cpp/SDL_SetRenderLogicalPresentation sdl-renderer logical-w logical-h cpp/SDL_LOGICAL_PRESENTATION_LETTERBOX))
+
+    (let [horse-tex (doto (cpp/IMG_LoadTexture sdl-renderer "resources/horse/horserun.png")
+                      (cpp/SDL_SetTextureScaleMode cpp/SDL_SCALEMODE_NEAREST))
+          src-rect  (cpp/SDL_FRect (cpp/float 0.0) (cpp/float 0.0) (cpp/float 60.0) (cpp/float 33.0))
+          dst-rest  (cpp/SDL_FRect (cpp/float 0.0) (cpp/float 0.0) (cpp/float 60.0) (cpp/float 33.0))]
+
+      (loop [game game]
+        (when-not (::end? game)
+          (let [game' (-> game
+                          (poll-events))]
+            (cpp/SDL_SetRenderDrawColor sdl-renderer 25 25 32 255)
+            (cpp/SDL_RenderClear sdl-renderer)
+
+            (cpp/SDL_RenderTexture sdl-renderer horse-tex (cpp/& src-rect) (cpp/& dst-rest))
+
+            (cpp/SDL_RenderPresent sdl-renderer)
+            (recur game'))))
+
+      (cpp/SDL_DestroyTexture horse-tex))
 
     (cleanup game)))
 

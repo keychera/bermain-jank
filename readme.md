@@ -103,3 +103,22 @@ source: https://opengameart.org/content/animated-horse
 magick HorseRun_4.gif -coalesce +append horserun.png
 ```
 
+## error 3 cpp/float weirdness?
+
+
+```
+(cpp/SDL_FRect (cpp/float 0) (cpp/float 0) (cpp/float 60) (cpp/float 33))
+```
+above makes the sdl program hangs and exit, no error message or any exception thrown
+running that in repl however
+```
+clj꞉bermain.sdl3.sdl3꞉> 
+(cpp/SDL_FRect (cpp/float 0) (cpp/float 0) (cpp/float 60) (cpp/float 33))
+This function is returning a native object of type 'SDL_FRect', which is not convertible to a jank runtime object.
+```
+no problem
+
+and below works
+```
+(cpp/SDL_FRect (cpp/float 0.0) (cpp/float 0.0) (cpp/float 60.0) (cpp/float 33.0))
+```
