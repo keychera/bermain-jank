@@ -94,3 +94,12 @@ error: Uncaught exception while expanding macro.
 ─ internal/failure ─────────────────────────────────────────────────────────────────────────────────
 error: Failed to find symbol: 'bermain_sdl3_common_must_be_true_12_4'  
 ```
+
+## it's magick!
+
+source: https://opengameart.org/content/animated-horse
+
+```sh
+magick HorseRun_4.gif -coalesce +append horserun.png
+```
+
