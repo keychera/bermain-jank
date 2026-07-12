@@ -122,3 +122,23 @@ and below works
 ```
 (cpp/SDL_FRect (cpp/float 0.0) (cpp/float 0.0) (cpp/float 60.0) (cpp/float 33.0))
 ```
+
+isolating above to just
+```clojure
+(cpp/raw "struct RandomRect {float x, y, w, h;};")
+(let [src (cpp/RandomRect (cpp/float 0) (cpp/float 0) (cpp/float 60) (cpp/float 33))]
+  (println (.-x src)))
+
+;; ERROR
+;; libunwind:      pc not in table, pc=0x37
+;; Exception caught while destructing timerlibunwind:      pc not in table, pc=0x37
+;; libc++abi: terminating due to uncaught exception of type std::runtime_error: invalid object type (expected real found small_integer)
+```
+
+or this (but the error isnt descriptive)
+```clojure
+(cpp/float 0)
+
+;; ERROR
+;; libunwind:      pc not in table, pc=0x799E5FF868
+```
