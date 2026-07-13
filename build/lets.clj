@@ -2,6 +2,7 @@
   (:require
    [babashka.fs :as fs]
    [babashka.http-client :as http]
+   [clojure.edn :as edn]
    [clojure.java.io :as io]
    [clojure.string :as str]
    [clojure.tools.build.api :as b])
@@ -27,6 +28,8 @@
 (defn ->flags [flag coll]
   (into [] (mapcat (fn [entry] [flag entry])) coll))
 
+(def wherejank (edn/read-string (slurp "wherejank.edn")))
+
 (defn jank-command
   ([jank-deps-edn] (jank-command jank-deps-edn nil {}))
   ([jank-deps-edn command {:keys [main-module extra]}]
@@ -34,7 +37,7 @@
      (into []
            (remove nil?)
            (concat
-            [(or (str/trim-newline (slurp "wherejank")) "jank") "--module-path" module-path]
+            [(or (:bin wherejank) "jank") "--module-path" module-path]
             (->flags "-I" include-dirs)
             (->flags "-L" library-dirs)
             (->flags "-l" linked-libraries)
@@ -53,7 +56,8 @@
 (defn tell-clangd ;; about our project
   [{}]
   (spit "compile_flags.txt"
-        (->> (jank-command (->jank-deps-edn @deps-basis))
+        (->> (concat (jank-command (->jank-deps-edn @deps-basis))
+                     ["-I" (str (:home wherejank) "/compiler+runtime/include/cpp")])
              (drop 3)
              (str/join "\n"))))
 
@@ -156,6 +160,14 @@
   (let [jedn (->jank-deps-edn @deps-basis)
         jout (-> @deps-basis :jank :compile-out)
         jcmd (jank-command jedn "compile" {:main-module (get-main-module @deps-basis) :extra ["--name" jout]})]
+    (log jcmd)
+    (b/process {:command-args jcmd})
+    (gather-shared-libs)))
+
+(defn compile-to-cpp
+  [{}]
+  (let [jedn (->jank-deps-edn @deps-basis)
+        jcmd (jank-command jedn "compile" {:main-module (get-main-module @deps-basis) :extra ["--output-target" "cpp" "--no-debug" "-O3"]})]
     (log jcmd)
     (b/process {:command-args jcmd})
     (gather-shared-libs)))

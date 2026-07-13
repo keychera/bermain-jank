@@ -20,4 +20,4 @@ target
 compile_flags.txt 
 
 # for custom jank
-wherejank
+wherejank.edn
